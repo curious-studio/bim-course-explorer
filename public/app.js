@@ -9,6 +9,7 @@ const state = {
   filtered: [],
   sortKey: "course",
   sortDir: "asc",
+  sectionView: "table",
   openOnly: false,
 };
 
@@ -36,7 +37,10 @@ const els = {
   facultyList: $("facultyList"),
   roomList: $("roomList"),
   sectionsBody: $("sectionsBody"),
+  sectionsCards: $("sectionsCards"),
   tableCount: $("tableCount"),
+  tableViewButton: $("tableViewButton"),
+  cardViewButton: $("cardViewButton"),
   exportButton: $("exportButton"),
 };
 
@@ -256,14 +260,23 @@ function bindEvents() {
     applyFilters();
   });
   els.exportButton.addEventListener("click", exportCsv);
+  els.tableViewButton.addEventListener("click", () => setSectionView("table"));
+  els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
   document.querySelectorAll("th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => {
       const nextKey = th.dataset.sort;
       state.sortDir = state.sortKey === nextKey && state.sortDir === "asc" ? "desc" : "asc";
       state.sortKey = nextKey;
-      renderTable();
+      renderSections();
     });
   });
+}
+
+function setSectionView(view) {
+  state.sectionView = view;
+  els.tableViewButton.setAttribute("aria-pressed", String(view === "table"));
+  els.cardViewButton.setAttribute("aria-pressed", String(view === "cards"));
+  renderSections();
 }
 
 function applyFilters() {
@@ -290,7 +303,7 @@ function renderAll() {
   renderSubjectBars();
   renderRanks("facultyList", facultyStats(state.filtered), "sections");
   renderRanks("roomList", roomStats(state.filtered), "sections");
-  renderTable();
+  renderSections();
 }
 
 function totals(rows) {
@@ -425,11 +438,31 @@ function sortValue(row, key) {
   return row[key] ?? "";
 }
 
+function renderSections() {
+  const isCardView = state.sectionView === "cards";
+  document.querySelector(".table-panel").classList.toggle("is-card-view", isCardView);
+  document.querySelector(".table-wrap").hidden = isCardView;
+  els.sectionsCards.hidden = !isCardView;
+
+  if (isCardView) {
+    renderCards();
+  } else {
+    renderTable();
+  }
+}
+
 function renderTable() {
   const rows = sortedRows().slice(0, 600);
   els.sectionsBody.innerHTML = rows.length
     ? rows.map(renderRow).join("")
     : `<tr><td colspan="8">${emptyMessage("No sections match the current filters.")}</td></tr>`;
+}
+
+function renderCards() {
+  const rows = sortedRows().slice(0, 120);
+  els.sectionsCards.innerHTML = rows.length
+    ? rows.map(renderCard).join("")
+    : emptyMessage("No sections match the current filters.");
 }
 
 function renderRow(row) {
@@ -451,6 +484,36 @@ function renderRow(row) {
     <td>${escapeHtml(row.faculty.join(", ") || "None assigned")}</td>
     <td><div class="pill-list">${attrs}</div></td>
   </tr>`;
+}
+
+function renderCard(row) {
+  const term = encodeURIComponent(state.selectedTerm);
+  const crn = encodeURIComponent(row.crn);
+  const attrs = row.attributes.length
+    ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
+    : `<span class="pill">None</span>`;
+  const openClass = row.available > 0 ? "open" : "full";
+  const openText = row.available > 0 ? `${number.format(row.available)} open` : "Full";
+
+  return `<article class="section-card">
+    <header>
+      <div>
+        <h3><a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a></h3>
+        <p>${escapeHtml(row.title)}</p>
+      </div>
+      <span class="pill ${openClass}">${openText}</span>
+    </header>
+    <div class="card-meta">
+      <div><span>CRN</span><strong>${escapeHtml(row.crn)}</strong></div>
+      <div><span>Seats</span><strong>${number.format(row.filled)} / ${number.format(row.max)}</strong></div>
+      <div><span>Delivery</span><strong>${escapeHtml(row.label)}</strong></div>
+      <div><span>Credits</span><strong>${escapeHtml(row.credits)}</strong></div>
+      <div class="card-wide"><span>Meeting</span><strong>${escapeHtml(row.meeting || "Meeting TBD")}</strong></div>
+      <div class="card-wide"><span>Faculty</span><strong>${escapeHtml(row.faculty.join(", ") || "None assigned")}</strong></div>
+      ${row.wait ? `<div><span>Waitlist</span><strong>${number.format(row.wait)}</strong></div>` : ""}
+    </div>
+    <div class="pill-list">${attrs}</div>
+  </article>`;
 }
 
 function emptyMessage(message) {

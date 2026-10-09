@@ -72,6 +72,40 @@
         </article>
       </section>
 
+      <section class="panel table-panel">
+        <div class="panel-title table-title">
+          <div>
+            <h2>Sections</h2>
+            <span id="tableCount">-</span>
+          </div>
+          <div class="section-actions" aria-label="Section view and export controls">
+            <div class="view-toggle" role="group" aria-label="Section view">
+              <button id="tableViewButton" type="button" aria-pressed="true">Table</button>
+              <button id="cardViewButton" type="button" aria-pressed="false">Cards</button>
+            </div>
+            <button id="exportButton" type="button">Export visible CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="course">Course</th>
+                <th data-sort="title">Title</th>
+                <th data-sort="filled">Filled</th>
+                <th data-sort="available">Open</th>
+                <th data-sort="delivery">Delivery</th>
+                <th data-sort="meeting">Meeting</th>
+                <th data-sort="faculty">Faculty</th>
+                <th data-sort="attributes">Attributes</th>
+              </tr>
+            </thead>
+            <tbody id="sectionsBody"></tbody>
+          </table>
+        </div>
+        <div id="sectionsCards" class="section-card-grid" hidden></div>
+      </section>
+
       <section class="insight-layout">
         <article class="panel chart-panel">
           <div class="panel-title">
@@ -88,14 +122,6 @@
           </div>
           <div id="deliveryBars" class="stacked-bars"></div>
         </article>
-      </section>
-
-      <section class="panel">
-        <div class="panel-title">
-          <h2>Subject Load</h2>
-          <span>Top subjects in current filter</span>
-        </div>
-        <div id="subjectBars" class="bar-list"></div>
       </section>
 
       <section class="split-panels">
@@ -116,31 +142,12 @@
         </article>
       </section>
 
-      <section class="panel table-panel">
-        <div class="panel-title table-title">
-          <div>
-            <h2>Sections</h2>
-            <span id="tableCount">-</span>
-          </div>
-          <button id="exportButton" type="button">Export visible CSV</button>
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Subject Load</h2>
+          <span>Top subjects in current filter</span>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th data-sort="course">Course</th>
-                <th data-sort="title">Title</th>
-                <th data-sort="filled">Filled</th>
-                <th data-sort="available">Open</th>
-                <th data-sort="delivery">Delivery</th>
-                <th data-sort="meeting">Meeting</th>
-                <th data-sort="faculty">Faculty</th>
-                <th data-sort="attributes">Attributes</th>
-              </tr>
-            </thead>
-            <tbody id="sectionsBody"></tbody>
-          </table>
-        </div>
+        <div id="subjectBars" class="bar-list"></div>
       </section>
     </main>
 

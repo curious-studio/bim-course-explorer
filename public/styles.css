@@ -202,6 +202,33 @@ select {
   margin-bottom: 14px;
 }
 
+.section-actions,
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-toggle {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f9fbfd;
+  padding: 2px;
+}
+
+.view-toggle button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.view-toggle button[aria-pressed="true"] {
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(24, 33, 47, 0.12);
+}
+
 .chart-panel {
   min-height: 380px;
 }
@@ -315,6 +342,10 @@ canvas {
   padding-bottom: 0;
 }
 
+.table-panel.is-card-view {
+  padding-bottom: 16px;
+}
+
 .table-wrap {
   overflow: auto;
   margin: 0 -16px;
@@ -383,6 +414,69 @@ td {
   color: var(--green);
 }
 
+.section-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.section-card {
+  display: grid;
+  gap: 12px;
+  min-height: 230px;
+  border: 1px solid #e1e7ef;
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 14px;
+}
+
+.section-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-card h3 {
+  margin: 0 0 3px;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.section-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.card-meta div {
+  display: grid;
+  gap: 2px;
+}
+
+.card-meta span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.card-meta strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.card-wide {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1120px) {
   .controls,
   .insight-layout,
@@ -413,5 +507,24 @@ td {
   .source-link {
     width: 100%;
     justify-content: center;
+  }
+
+  .section-actions {
+    align-items: stretch;
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .view-toggle,
+  .section-actions > button {
+    width: 100%;
+  }
+
+  .view-toggle button {
+    flex: 1;
+  }
+
+  .card-meta {
+    grid-template-columns: 1fr;
   }
 }
