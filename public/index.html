@@ -26,12 +26,20 @@
           Search
           <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
         </label>
-        <label>
+        <div class="subject-filter">
           Subject
-          <select id="subjectSelect">
-            <option value="">All subjects</option>
-          </select>
-        </label>
+          <button id="subjectToggle" class="subject-toggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
+            <span id="subjectSummary">All subjects</span>
+            <span aria-hidden="true">v</span>
+          </button>
+          <div id="subjectPanel" class="subject-panel" hidden>
+            <div class="subject-panel-title">
+              <strong>Subjects</strong>
+              <button id="clearSubjectsButton" type="button">Clear</button>
+            </div>
+            <div id="subjectOptions" class="subject-options" aria-label="Subject choices"></div>
+          </div>
+        </div>
         <label>
           Delivery
           <select id="deliverySelect">

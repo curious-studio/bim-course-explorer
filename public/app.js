@@ -7,6 +7,7 @@ const state = {
   history: null,
   rows: [],
   filtered: [],
+  selectedSubjects: new Set(),
   sortKey: "course",
   sortDir: "asc",
   sectionView: "table",
@@ -20,7 +21,11 @@ const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const els = {
   termSelect: $("termSelect"),
   searchInput: $("searchInput"),
-  subjectSelect: $("subjectSelect"),
+  subjectToggle: $("subjectToggle"),
+  subjectSummary: $("subjectSummary"),
+  subjectPanel: $("subjectPanel"),
+  subjectOptions: $("subjectOptions"),
+  clearSubjectsButton: $("clearSubjectsButton"),
   deliverySelect: $("deliverySelect"),
   genEdSelect: $("genEdSelect"),
   openOnlyButton: $("openOnlyButton"),
@@ -220,7 +225,6 @@ async function loadTerm(term) {
 }
 
 function hydrateFilters() {
-  const selectedSubject = els.subjectSelect.value;
   const selectedGenEd = els.genEdSelect.value;
   const subjects = [...new Set(state.rows.map((row) => row.subject))].sort();
   const attrs = new Map();
@@ -228,10 +232,8 @@ function hydrateFilters() {
     row.attributes.forEach((attr) => attrs.set(attr.code, attr.description || attr.code));
   });
 
-  els.subjectSelect.innerHTML = `<option value="">All subjects</option>${subjects
-    .map((subject) => `<option value="${escapeHtml(subject)}">${escapeHtml(subject)}</option>`)
-    .join("")}`;
-  els.subjectSelect.value = subjects.includes(selectedSubject) ? selectedSubject : "";
+  state.selectedSubjects = new Set([...state.selectedSubjects].filter((subject) => subjects.includes(subject)));
+  renderSubjectOptions(subjects);
 
   els.genEdSelect.innerHTML = `<option value="">All attributes</option>${[...attrs.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -242,8 +244,24 @@ function hydrateFilters() {
 
 function bindEvents() {
   els.termSelect.addEventListener("change", () => loadTerm(els.termSelect.value));
-  [els.searchInput, els.subjectSelect, els.deliverySelect, els.genEdSelect].forEach((el) => {
+  [els.searchInput, els.deliverySelect, els.genEdSelect].forEach((el) => {
     el.addEventListener("input", applyFilters);
+  });
+  els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
+  els.clearSubjectsButton.addEventListener("click", () => {
+    state.selectedSubjects.clear();
+    updateSubjectFilter();
+  });
+  els.subjectOptions.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-subject]");
+    if (!button) return;
+    const subject = button.dataset.subject;
+    if (state.selectedSubjects.has(subject)) {
+      state.selectedSubjects.delete(subject);
+    } else {
+      state.selectedSubjects.add(subject);
+    }
+    updateSubjectFilter();
   });
   els.openOnlyButton.addEventListener("click", () => {
     state.openOnly = !state.openOnly;
@@ -252,7 +270,8 @@ function bindEvents() {
   });
   els.resetButton.addEventListener("click", () => {
     els.searchInput.value = "";
-    els.subjectSelect.value = "";
+    state.selectedSubjects.clear();
+    setSubjectPanelOpen(false);
     els.deliverySelect.value = "";
     els.genEdSelect.value = "";
     state.openOnly = false;
@@ -272,6 +291,34 @@ function bindEvents() {
   });
 }
 
+function setSubjectPanelOpen(isOpen) {
+  els.subjectToggle.setAttribute("aria-expanded", String(isOpen));
+  els.subjectPanel.hidden = !isOpen;
+}
+
+function renderSubjectOptions(subjects) {
+  els.subjectOptions.innerHTML = subjects.length
+    ? subjects
+        .map((subject) => {
+          const selected = state.selectedSubjects.has(subject);
+          return `<button class="subject-pill" type="button" data-subject="${escapeHtml(subject)}" aria-pressed="${selected}">${escapeHtml(subject)}</button>`;
+        })
+        .join("")
+    : emptyMessage("No subjects available.");
+  updateSubjectSummary();
+}
+
+function updateSubjectFilter() {
+  renderSubjectOptions([...new Set(state.rows.map((row) => row.subject))].sort());
+  applyFilters();
+}
+
+function updateSubjectSummary() {
+  const selected = [...state.selectedSubjects].sort();
+  els.subjectSummary.textContent = selected.length ? `${selected.length} selected: ${selected.join(", ")}` : "All subjects";
+  els.clearSubjectsButton.disabled = selected.length === 0;
+}
+
 function setSectionView(view) {
   state.sectionView = view;
   els.tableViewButton.setAttribute("aria-pressed", String(view === "table"));
@@ -281,13 +328,13 @@ function setSectionView(view) {
 
 function applyFilters() {
   const query = els.searchInput.value.trim().toLowerCase();
-  const subject = els.subjectSelect.value;
+  const subjects = state.selectedSubjects;
   const delivery = els.deliverySelect.value;
   const genEd = els.genEdSelect.value;
 
   state.filtered = state.rows.filter((row) => {
     if (query && !row.search.includes(query)) return false;
-    if (subject && row.subject !== subject) return false;
+    if (subjects.size && !subjects.has(row.subject)) return false;
     if (delivery && row.delivery !== delivery) return false;
     if (genEd && !row.attributes.some((attr) => attr.code === genEd)) return false;
     if (state.openOnly && row.available <= 0) return false;
