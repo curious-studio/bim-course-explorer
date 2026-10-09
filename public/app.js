@@ -10,6 +10,7 @@ const state = {
   rows: [],
   filtered: [],
   selectedSubjects: new Set(),
+  selectedFaculty: new Set(),
   sortKey: "course",
   sortDir: "asc",
   sectionView: "table",
@@ -29,6 +30,11 @@ const els = {
   subjectPanel: $("subjectPanel"),
   subjectOptions: $("subjectOptions"),
   clearSubjectsButton: $("clearSubjectsButton"),
+  facultyToggle: $("facultyToggle"),
+  facultySummary: $("facultySummary"),
+  facultyPanel: $("facultyPanel"),
+  facultyOptions: $("facultyOptions"),
+  clearFacultyButton: $("clearFacultyButton"),
   deliverySelect: $("deliverySelect"),
   genEdSelect: $("genEdSelect"),
   openOnlyButton: $("openOnlyButton"),
@@ -242,13 +248,16 @@ async function loadTerm(term) {
 function hydrateFilters() {
   const selectedGenEd = els.genEdSelect.value;
   const subjects = [...new Set(state.rows.map((row) => row.subject))].sort();
+  const facultyNames = [...new Set(state.rows.flatMap((row) => row.faculty.length ? row.faculty : ["None assigned"]))].sort();
   const attrs = new Map();
   state.rows.forEach((row) => {
     row.attributes.forEach((attr) => attrs.set(attr.code, attr.description || attr.code));
   });
 
   state.selectedSubjects = new Set([...state.selectedSubjects].filter((subject) => subjects.includes(subject)));
-  renderSubjectOptions(subjects);
+  state.selectedFaculty = new Set([...state.selectedFaculty].filter((faculty) => facultyNames.includes(faculty)));
+  renderPickerOptions("subject", subjects);
+  renderPickerOptions("faculty", facultyNames);
 
   els.genEdSelect.innerHTML = `<option value="">All attributes</option>${[...attrs.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -263,6 +272,7 @@ function loadPreferences() {
     if (!saved || typeof saved !== "object") return;
     state.selectedTerm = typeof saved.term === "string" ? saved.term : "";
     state.selectedSubjects = new Set(Array.isArray(saved.subjects) ? saved.subjects.filter((subject) => typeof subject === "string") : []);
+    state.selectedFaculty = new Set(Array.isArray(saved.faculty) ? saved.faculty.filter((faculty) => typeof faculty === "string") : []);
     state.sectionView = saved.sectionView === "cards" ? "cards" : "table";
     state.openOnly = Boolean(saved.openOnly);
     els.searchInput.value = typeof saved.search === "string" ? saved.search : "";
@@ -287,6 +297,7 @@ function savePreferences() {
     term: state.selectedTerm,
     search: els.searchInput.value,
     subjects: [...state.selectedSubjects],
+    faculty: [...state.selectedFaculty],
     delivery: els.deliverySelect.value,
     genEd: els.genEdSelect.value,
     openOnly: state.openOnly,
@@ -356,20 +367,20 @@ function bindEvents() {
     el.addEventListener("input", applyFilters);
   });
   els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
+  els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
   els.clearSubjectsButton.addEventListener("click", () => {
     state.selectedSubjects.clear();
-    updateSubjectFilter();
+    updatePickerFilter("subject");
+  });
+  els.clearFacultyButton.addEventListener("click", () => {
+    state.selectedFaculty.clear();
+    updatePickerFilter("faculty");
   });
   els.subjectOptions.addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-subject]");
-    if (!button) return;
-    const subject = button.dataset.subject;
-    if (state.selectedSubjects.has(subject)) {
-      state.selectedSubjects.delete(subject);
-    } else {
-      state.selectedSubjects.add(subject);
-    }
-    updateSubjectFilter();
+    handlePickerClick(event, "subject");
+  });
+  els.facultyOptions.addEventListener("click", (event) => {
+    handlePickerClick(event, "faculty");
   });
   els.openOnlyButton.addEventListener("click", () => {
     state.openOnly = !state.openOnly;
@@ -379,7 +390,9 @@ function bindEvents() {
   els.resetButton.addEventListener("click", () => {
     els.searchInput.value = "";
     state.selectedSubjects.clear();
+    state.selectedFaculty.clear();
     setSubjectPanelOpen(false);
+    setFacultyPanelOpen(false);
     els.deliverySelect.value = "";
     els.genEdSelect.value = "";
     state.openOnly = false;
@@ -406,27 +419,72 @@ function setSubjectPanelOpen(isOpen) {
   els.subjectPanel.hidden = !isOpen;
 }
 
-function renderSubjectOptions(subjects) {
-  els.subjectOptions.innerHTML = subjects.length
-    ? subjects
-        .map((subject) => {
-          const selected = state.selectedSubjects.has(subject);
-          return `<button class="subject-pill" type="button" data-subject="${escapeHtml(subject)}" aria-pressed="${selected}">${escapeHtml(subject)}</button>`;
-        })
-        .join("")
-    : emptyMessage("No subjects available.");
-  updateSubjectSummary();
+function setFacultyPanelOpen(isOpen) {
+  els.facultyToggle.setAttribute("aria-expanded", String(isOpen));
+  els.facultyPanel.hidden = !isOpen;
 }
 
-function updateSubjectFilter() {
-  renderSubjectOptions([...new Set(state.rows.map((row) => row.subject))].sort());
+function pickerConfig(kind) {
+  return kind === "faculty"
+    ? {
+        selected: state.selectedFaculty,
+        options: els.facultyOptions,
+        summary: els.facultySummary,
+        clearButton: els.clearFacultyButton,
+        empty: "No faculty available.",
+        all: "All faculty",
+        dataAttr: "faculty",
+      }
+    : {
+        selected: state.selectedSubjects,
+        options: els.subjectOptions,
+        summary: els.subjectSummary,
+        clearButton: els.clearSubjectsButton,
+        empty: "No subjects available.",
+        all: "All subjects",
+        dataAttr: "subject",
+      };
+}
+
+function renderPickerOptions(kind, values) {
+  const config = pickerConfig(kind);
+  config.options.innerHTML = values.length
+    ? values
+        .map((subject) => {
+          const selected = config.selected.has(subject);
+          return `<button class="picker-pill" type="button" data-${config.dataAttr}="${escapeHtml(subject)}" aria-pressed="${selected}">${escapeHtml(subject)}</button>`;
+        })
+        .join("")
+    : emptyMessage(config.empty);
+  updatePickerSummary(kind);
+}
+
+function updatePickerFilter(kind) {
+  const values = kind === "faculty"
+    ? [...new Set(state.rows.flatMap((row) => row.faculty.length ? row.faculty : ["None assigned"]))].sort()
+    : [...new Set(state.rows.map((row) => row.subject))].sort();
+  renderPickerOptions(kind, values);
   applyFilters();
 }
 
-function updateSubjectSummary() {
-  const selected = [...state.selectedSubjects].sort();
-  els.subjectSummary.textContent = selected.length ? `${selected.length} selected: ${selected.join(", ")}` : "All subjects";
-  els.clearSubjectsButton.disabled = selected.length === 0;
+function handlePickerClick(event, kind) {
+  const config = pickerConfig(kind);
+  const button = event.target.closest(`button[data-${config.dataAttr}]`);
+  if (!button) return;
+  const value = button.dataset[config.dataAttr];
+  if (config.selected.has(value)) {
+    config.selected.delete(value);
+  } else {
+    config.selected.add(value);
+  }
+  updatePickerFilter(kind);
+}
+
+function updatePickerSummary(kind) {
+  const config = pickerConfig(kind);
+  const selected = [...config.selected].sort();
+  config.summary.textContent = selected.length ? `${selected.length} selected: ${selected.join(", ")}` : config.all;
+  config.clearButton.disabled = selected.length === 0;
 }
 
 function setSectionView(view) {
@@ -440,12 +498,17 @@ function setSectionView(view) {
 function applyFilters() {
   const query = els.searchInput.value.trim().toLowerCase();
   const subjects = state.selectedSubjects;
+  const facultyNames = state.selectedFaculty;
   const delivery = els.deliverySelect.value;
   const genEd = els.genEdSelect.value;
 
   state.filtered = state.rows.filter((row) => {
     if (query && !row.search.includes(query)) return false;
     if (subjects.size && !subjects.has(row.subject)) return false;
+    if (facultyNames.size) {
+      const names = row.faculty.length ? row.faculty : ["None assigned"];
+      if (!names.some((name) => facultyNames.has(name))) return false;
+    }
     if (delivery && row.delivery !== delivery) return false;
     if (genEd && !row.attributes.some((attr) => attr.code === genEd)) return false;
     if (state.openOnly && row.available <= 0) return false;

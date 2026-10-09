@@ -105,9 +105,22 @@ button[aria-pressed="true"] {
 
 .controls {
   display: grid;
-  grid-template-columns: minmax(150px, 0.75fr) minmax(240px, 1.4fr) repeat(3, minmax(140px, 0.7fr)) auto auto;
+  gap: 10px;
+}
+
+.secondary-controls,
+.primary-controls {
+  display: grid;
   gap: 12px;
   align-items: end;
+}
+
+.secondary-controls {
+  grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1.6fr) minmax(140px, 0.7fr) minmax(150px, 0.9fr) auto auto;
+}
+
+.primary-controls {
+  grid-template-columns: minmax(320px, 2fr) minmax(220px, 1fr);
 }
 
 label {
@@ -118,7 +131,7 @@ label {
   font-weight: 700;
 }
 
-.subject-filter {
+.picker-filter {
   position: relative;
   display: grid;
   gap: 5px;
@@ -138,7 +151,7 @@ select {
   padding: 0 10px;
 }
 
-.subject-toggle {
+.picker-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -150,14 +163,14 @@ select {
   text-align: left;
 }
 
-.subject-toggle span:first-child {
+.picker-toggle span:first-child {
   overflow: hidden;
   min-width: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.subject-panel {
+.picker-panel {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
@@ -170,7 +183,12 @@ select {
   padding: 12px;
 }
 
-.subject-panel-title {
+.faculty-filter .picker-panel {
+  right: 0;
+  left: auto;
+}
+
+.picker-panel-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -179,17 +197,17 @@ select {
   color: var(--ink);
 }
 
-.subject-panel-title button {
+.picker-panel-title button {
   min-height: 30px;
   padding: 0 10px;
 }
 
-.subject-panel-title button:disabled {
+.picker-panel-title button:disabled {
   cursor: default;
   opacity: 0.45;
 }
 
-.subject-options {
+.picker-options {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -197,7 +215,7 @@ select {
   overflow: auto;
 }
 
-.subject-pill {
+.picker-pill {
   min-height: 32px;
   border-radius: 999px;
   padding: 0 12px;
@@ -720,7 +738,8 @@ td {
 }
 
 @media (max-width: 1120px) {
-  .controls,
+  .secondary-controls,
+  .primary-controls,
   .insight-layout,
   .split-panels {
     grid-template-columns: 1fr 1fr;
@@ -740,6 +759,8 @@ td {
   }
 
   .controls,
+  .secondary-controls,
+  .primary-controls,
   .summary-grid,
   .insight-layout,
   .split-panels {

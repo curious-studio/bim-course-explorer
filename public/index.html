@@ -18,45 +18,64 @@
 
     <main>
       <section class="controls" aria-label="Dashboard controls">
-        <label>
-          Term
-          <select id="termSelect"></select>
-        </label>
-        <label>
-          Search
-          <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
-        </label>
-        <div class="subject-filter">
-          Subject
-          <button id="subjectToggle" class="subject-toggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
-            <span id="subjectSummary">All subjects</span>
-            <span aria-hidden="true">v</span>
-          </button>
-          <div id="subjectPanel" class="subject-panel" hidden>
-            <div class="subject-panel-title">
-              <strong>Subjects</strong>
-              <button id="clearSubjectsButton" type="button">Clear</button>
+        <div class="secondary-controls" aria-label="Secondary filters">
+          <label>
+            Term
+            <select id="termSelect"></select>
+          </label>
+          <label>
+            Search
+            <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
+          </label>
+          <label>
+            Delivery
+            <select id="deliverySelect">
+              <option value="">All modes</option>
+              <option value="internet">Internet</option>
+              <option value="campus">Campus</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+          <label>
+            Gen Ed
+            <select id="genEdSelect">
+              <option value="">All attributes</option>
+            </select>
+          </label>
+          <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
+          <button id="resetButton" type="button">Reset</button>
+        </div>
+
+        <div class="primary-controls" aria-label="Primary filters">
+          <div class="picker-filter subject-filter">
+            Subject
+            <button id="subjectToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
+              <span id="subjectSummary">All subjects</span>
+              <span aria-hidden="true">v</span>
+            </button>
+            <div id="subjectPanel" class="picker-panel" hidden>
+              <div class="picker-panel-title">
+                <strong>Subjects</strong>
+                <button id="clearSubjectsButton" type="button">Clear</button>
+              </div>
+              <div id="subjectOptions" class="picker-options" aria-label="Subject choices"></div>
             </div>
-            <div id="subjectOptions" class="subject-options" aria-label="Subject choices"></div>
+          </div>
+          <div class="picker-filter faculty-filter">
+            Faculty
+            <button id="facultyToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="facultyPanel">
+              <span id="facultySummary">All faculty</span>
+              <span aria-hidden="true">v</span>
+            </button>
+            <div id="facultyPanel" class="picker-panel" hidden>
+              <div class="picker-panel-title">
+                <strong>Faculty</strong>
+                <button id="clearFacultyButton" type="button">Clear</button>
+              </div>
+              <div id="facultyOptions" class="picker-options" aria-label="Faculty choices"></div>
+            </div>
           </div>
         </div>
-        <label>
-          Delivery
-          <select id="deliverySelect">
-            <option value="">All modes</option>
-            <option value="internet">Internet</option>
-            <option value="campus">Campus</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </label>
-        <label>
-          Gen Ed
-          <select id="genEdSelect">
-            <option value="">All attributes</option>
-          </select>
-        </label>
-        <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
-        <button id="resetButton" type="button">Reset</button>
       </section>
 
       <div id="status" class="status" role="status">Loading BIM data...</div>
