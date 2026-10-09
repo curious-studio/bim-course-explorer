@@ -11,9 +11,12 @@ const state = {
   filtered: [],
   selectedSubjects: new Set(),
   selectedFaculty: new Set(),
+  recentSubjects: [],
+  recentFaculty: [],
+  pickerValues: { subject: [], faculty: [] },
   sortKey: "course",
   sortDir: "asc",
-  sectionView: "table",
+  sectionView: "cards",
   openOnly: false,
   preferencesLoaded: false,
 };
@@ -55,6 +58,7 @@ const els = {
   tableCount: $("tableCount"),
   tableViewButton: $("tableViewButton"),
   cardViewButton: $("cardViewButton"),
+  cardSortSelect: $("cardSortSelect"),
   exportButton: $("exportButton"),
 };
 
@@ -256,6 +260,8 @@ function hydrateFilters() {
 
   state.selectedSubjects = new Set([...state.selectedSubjects].filter((subject) => subjects.includes(subject)));
   state.selectedFaculty = new Set([...state.selectedFaculty].filter((faculty) => facultyNames.includes(faculty)));
+  state.recentSubjects = state.recentSubjects.filter((subject) => subjects.includes(subject));
+  state.recentFaculty = state.recentFaculty.filter((faculty) => facultyNames.includes(faculty));
   renderPickerOptions("subject", subjects);
   renderPickerOptions("faculty", facultyNames);
 
@@ -273,7 +279,9 @@ function loadPreferences() {
     state.selectedTerm = typeof saved.term === "string" ? saved.term : "";
     state.selectedSubjects = new Set(Array.isArray(saved.subjects) ? saved.subjects.filter((subject) => typeof subject === "string") : []);
     state.selectedFaculty = new Set(Array.isArray(saved.faculty) ? saved.faculty.filter((faculty) => typeof faculty === "string") : []);
-    state.sectionView = saved.sectionView === "cards" ? "cards" : "table";
+    state.recentSubjects = Array.isArray(saved.recentSubjects) ? saved.recentSubjects.filter((subject) => typeof subject === "string") : [];
+    state.recentFaculty = Array.isArray(saved.recentFaculty) ? saved.recentFaculty.filter((faculty) => typeof faculty === "string") : [];
+    state.sectionView = saved.sectionView === "table" ? "table" : "cards";
     state.openOnly = Boolean(saved.openOnly);
     els.searchInput.value = typeof saved.search === "string" ? saved.search : "";
     els.deliverySelect.value = typeof saved.delivery === "string" ? saved.delivery : "";
@@ -290,6 +298,7 @@ function applyStoredControls() {
   els.openOnlyButton.setAttribute("aria-pressed", String(state.openOnly));
   els.tableViewButton.setAttribute("aria-pressed", String(state.sectionView === "table"));
   els.cardViewButton.setAttribute("aria-pressed", String(state.sectionView === "cards"));
+  syncCardSortControl();
 }
 
 function savePreferences() {
@@ -298,6 +307,8 @@ function savePreferences() {
     search: els.searchInput.value,
     subjects: [...state.selectedSubjects],
     faculty: [...state.selectedFaculty],
+    recentSubjects: state.recentSubjects,
+    recentFaculty: state.recentFaculty,
     delivery: els.deliverySelect.value,
     genEd: els.genEdSelect.value,
     openOnly: state.openOnly,
@@ -391,23 +402,37 @@ function bindEvents() {
     els.searchInput.value = "";
     state.selectedSubjects.clear();
     state.selectedFaculty.clear();
+    state.recentSubjects = [];
+    state.recentFaculty = [];
     setSubjectPanelOpen(false);
     setFacultyPanelOpen(false);
     els.deliverySelect.value = "";
     els.genEdSelect.value = "";
     state.openOnly = false;
+    state.sectionView = "cards";
+    state.sortKey = "course";
+    state.sortDir = "asc";
     els.openOnlyButton.setAttribute("aria-pressed", "false");
+    applyStoredControls();
     clearPreferences();
     applyFilters();
   });
   els.exportButton.addEventListener("click", exportCsv);
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
   els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
+  els.cardSortSelect.addEventListener("change", () => {
+    const [key, dir] = els.cardSortSelect.value.split(":");
+    state.sortKey = key;
+    state.sortDir = dir === "desc" ? "desc" : "asc";
+    savePreferences();
+    renderSections();
+  });
   document.querySelectorAll("th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => {
       const nextKey = th.dataset.sort;
       state.sortDir = state.sortKey === nextKey && state.sortDir === "asc" ? "desc" : "asc";
       state.sortKey = nextKey;
+      syncCardSortControl();
       savePreferences();
       renderSections();
     });
@@ -428,6 +453,7 @@ function pickerConfig(kind) {
   return kind === "faculty"
     ? {
         selected: state.selectedFaculty,
+        recent: state.recentFaculty,
         options: els.facultyOptions,
         summary: els.facultySummary,
         clearButton: els.clearFacultyButton,
@@ -437,6 +463,7 @@ function pickerConfig(kind) {
       }
     : {
         selected: state.selectedSubjects,
+        recent: state.recentSubjects,
         options: els.subjectOptions,
         summary: els.subjectSummary,
         clearButton: els.clearSubjectsButton,
@@ -448,13 +475,17 @@ function pickerConfig(kind) {
 
 function renderPickerOptions(kind, values) {
   const config = pickerConfig(kind);
+  state.pickerValues[kind] = values;
+  const recent = config.recent.filter((value) => values.includes(value)).slice(0, 8);
+  const remaining = values.filter((value) => !recent.includes(value));
+  const renderButton = (value) => {
+    const selected = config.selected.has(value);
+    const index = values.indexOf(value);
+    return `<button class="picker-pill" type="button" data-${config.dataAttr}-index="${index}" aria-pressed="${selected}">${escapeHtml(value)}</button>`;
+  };
   config.options.innerHTML = values.length
-    ? values
-        .map((subject) => {
-          const selected = config.selected.has(subject);
-          return `<button class="picker-pill" type="button" data-${config.dataAttr}="${escapeHtml(subject)}" aria-pressed="${selected}">${escapeHtml(subject)}</button>`;
-        })
-        .join("")
+    ? `${recent.length ? `<div class="picker-section"><span>Recently selected</span><div class="picker-pill-list">${recent.map(renderButton).join("")}</div></div>` : ""}
+      <div class="picker-section"><span>${recent.length ? "All" : ""}</span><div class="picker-pill-list">${remaining.map(renderButton).join("")}</div></div>`
     : emptyMessage(config.empty);
   updatePickerSummary(kind);
 }
@@ -469,15 +500,22 @@ function updatePickerFilter(kind) {
 
 function handlePickerClick(event, kind) {
   const config = pickerConfig(kind);
-  const button = event.target.closest(`button[data-${config.dataAttr}]`);
+  const button = event.target.closest(`button[data-${config.dataAttr}-index]`);
   if (!button) return;
-  const value = button.dataset[config.dataAttr];
+  const value = state.pickerValues[kind][Number(button.dataset[`${config.dataAttr}Index`])];
+  if (!value) return;
   if (config.selected.has(value)) {
     config.selected.delete(value);
   } else {
     config.selected.add(value);
+    rememberPickerValue(kind, value);
   }
   updatePickerFilter(kind);
+}
+
+function rememberPickerValue(kind, value) {
+  const key = kind === "faculty" ? "recentFaculty" : "recentSubjects";
+  state[key] = [value, ...state[key].filter((item) => item !== value)].slice(0, 8);
 }
 
 function updatePickerSummary(kind) {
@@ -491,8 +529,14 @@ function setSectionView(view) {
   state.sectionView = view;
   els.tableViewButton.setAttribute("aria-pressed", String(view === "table"));
   els.cardViewButton.setAttribute("aria-pressed", String(view === "cards"));
+  syncCardSortControl();
   savePreferences();
   renderSections();
+}
+
+function syncCardSortControl() {
+  const value = `${state.sortKey}:${state.sortDir}`;
+  els.cardSortSelect.value = [...els.cardSortSelect.options].some((option) => option.value === value) ? value : "course:asc";
 }
 
 function applyFilters() {
@@ -725,6 +769,7 @@ function renderCard(row) {
         </div>
         <h3>${escapeHtml(row.title)}</h3>
         <p>${escapeHtml(row.credits)} credits</p>
+        <div class="pill-list card-attributes">${attrs}</div>
       </div>
       <div class="enrollment-callout ${enrollmentClass}" aria-label="${number.format(row.filled)} students enrolled">
         <strong>${number.format(row.filled)}</strong>
@@ -737,7 +782,6 @@ function renderCard(row) {
         <p class="open-seats">Open seats: ${number.format(row.available)} / ${number.format(row.max)}</p>
         <p class="faculty-name">${escapeHtml(row.faculty.join(", ") || "None assigned")}</p>
         ${row.wait ? `<p class="waitlist-note">${number.format(row.wait)} waitlisted</p>` : ""}
-        <div class="pill-list card-attributes">${attrs}</div>
       </div>
     </div>
   </article>`;

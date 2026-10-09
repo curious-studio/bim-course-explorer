@@ -208,11 +208,32 @@ select {
 }
 
 .picker-options {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
   max-height: 260px;
   overflow: auto;
+}
+
+.picker-section {
+  display: grid;
+  gap: 6px;
+}
+
+.picker-section > span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.picker-section > span:empty {
+  display: none;
+}
+
+.picker-pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .picker-pill {
@@ -301,6 +322,14 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.card-sort-control {
+  min-width: 150px;
+}
+
+.card-sort-control select {
+  min-height: 34px;
 }
 
 .view-toggle {
@@ -707,7 +736,8 @@ td {
 }
 
 .card-attributes {
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-top: 10px;
 }
 
 .card-meta {
@@ -779,6 +809,7 @@ td {
   }
 
   .view-toggle,
+  .card-sort-control,
   .section-actions > button {
     width: 100%;
   }
