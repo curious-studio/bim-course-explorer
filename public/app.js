@@ -547,8 +547,7 @@ function renderCard(row) {
   const attrs = row.attributes.length
     ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
     : `<span class="pill">None</span>`;
-  const occupancy = row.max ? row.filled / row.max : 0;
-  const enrollmentClass = occupancy >= 0.7 ? "high" : occupancy <= 0.33 ? "low" : "mid";
+  const enrollmentClass = row.filled >= 10 ? "high" : row.filled < 9 ? "low" : "mid";
 
   return `<article class="section-card">
     <div class="section-card-top">
