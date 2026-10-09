@@ -1,4 +1,6 @@
 const API_BASE = "/api";
+const PREFERENCES_KEY = "bim-course-explorer.preferences.v1";
+const PREFERENCES_COOKIE = "bimCourseExplorerPrefs";
 
 const state = {
   terms: [],
@@ -12,6 +14,7 @@ const state = {
   sortDir: "asc",
   sectionView: "table",
   openOnly: false,
+  preferencesLoaded: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -193,6 +196,7 @@ function normalizeSection(section) {
 
 async function initialize() {
   bindEvents();
+  loadPreferences();
 
   try {
     const [terms, history] = await Promise.all([
@@ -205,8 +209,11 @@ async function initialize() {
     els.termSelect.innerHTML = terms
       .map((term) => `<option value="${term.code}">${escapeHtml(term.description)}</option>`)
       .join("");
-    state.selectedTerm = getDefaultTerm(terms, history);
+    state.selectedTerm = state.selectedTerm && terms.some((term) => term.code === state.selectedTerm)
+      ? state.selectedTerm
+      : getDefaultTerm(terms, history);
     els.termSelect.value = state.selectedTerm;
+    applyStoredControls();
     await loadTerm(state.selectedTerm);
     if (history) drawHistoryChart(history);
   } catch (error) {
@@ -250,8 +257,101 @@ function hydrateFilters() {
   els.genEdSelect.value = attrs.has(selectedGenEd) ? selectedGenEd : "";
 }
 
+function loadPreferences() {
+  try {
+    const saved = JSON.parse(readPreferenceStore() || "{}");
+    if (!saved || typeof saved !== "object") return;
+    state.selectedTerm = typeof saved.term === "string" ? saved.term : "";
+    state.selectedSubjects = new Set(Array.isArray(saved.subjects) ? saved.subjects.filter((subject) => typeof subject === "string") : []);
+    state.sectionView = saved.sectionView === "cards" ? "cards" : "table";
+    state.openOnly = Boolean(saved.openOnly);
+    els.searchInput.value = typeof saved.search === "string" ? saved.search : "";
+    els.deliverySelect.value = typeof saved.delivery === "string" ? saved.delivery : "";
+    els.genEdSelect.value = typeof saved.genEd === "string" ? saved.genEd : "";
+    state.sortKey = typeof saved.sortKey === "string" ? saved.sortKey : state.sortKey;
+    state.sortDir = saved.sortDir === "desc" ? "desc" : "asc";
+    state.preferencesLoaded = true;
+  } catch {
+    state.preferencesLoaded = false;
+  }
+}
+
+function applyStoredControls() {
+  els.openOnlyButton.setAttribute("aria-pressed", String(state.openOnly));
+  els.tableViewButton.setAttribute("aria-pressed", String(state.sectionView === "table"));
+  els.cardViewButton.setAttribute("aria-pressed", String(state.sectionView === "cards"));
+}
+
+function savePreferences() {
+  const payload = {
+    term: state.selectedTerm,
+    search: els.searchInput.value,
+    subjects: [...state.selectedSubjects],
+    delivery: els.deliverySelect.value,
+    genEd: els.genEdSelect.value,
+    openOnly: state.openOnly,
+    sectionView: state.sectionView,
+    sortKey: state.sortKey,
+    sortDir: state.sortDir,
+  };
+  try {
+    writePreferenceStore(JSON.stringify(payload));
+  } catch {
+    // Persistence is helpful, but the dashboard should continue without it.
+  }
+}
+
+function clearPreferences() {
+  try {
+    removePreferenceStore();
+  } catch {
+    // Ignore storage failures during reset.
+  }
+}
+
+function readPreferenceStore() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      const value = localStorage.getItem(PREFERENCES_KEY);
+      if (value) return value;
+    }
+  } catch {
+    // Fall back to cookies when storage is blocked.
+  }
+
+  const cookie = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(`${PREFERENCES_COOKIE}=`));
+  return cookie ? decodeURIComponent(cookie.slice(PREFERENCES_COOKIE.length + 1)) : "";
+}
+
+function writePreferenceStore(value) {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(PREFERENCES_KEY, value);
+    }
+  } catch {
+    // Cookies below are the fallback persistence layer.
+  }
+  document.cookie = `${PREFERENCES_COOKIE}=${encodeURIComponent(value)}; max-age=31536000; path=/; SameSite=Lax`;
+}
+
+function removePreferenceStore() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(PREFERENCES_KEY);
+    }
+  } catch {
+    // Cookies below are the fallback persistence layer.
+  }
+  document.cookie = `${PREFERENCES_COOKIE}=; max-age=0; path=/; SameSite=Lax`;
+}
+
 function bindEvents() {
-  els.termSelect.addEventListener("change", () => loadTerm(els.termSelect.value));
+  els.termSelect.addEventListener("change", () => {
+    savePreferences();
+    loadTerm(els.termSelect.value);
+  });
   [els.searchInput, els.deliverySelect, els.genEdSelect].forEach((el) => {
     el.addEventListener("input", applyFilters);
   });
@@ -284,6 +384,7 @@ function bindEvents() {
     els.genEdSelect.value = "";
     state.openOnly = false;
     els.openOnlyButton.setAttribute("aria-pressed", "false");
+    clearPreferences();
     applyFilters();
   });
   els.exportButton.addEventListener("click", exportCsv);
@@ -294,6 +395,7 @@ function bindEvents() {
       const nextKey = th.dataset.sort;
       state.sortDir = state.sortKey === nextKey && state.sortDir === "asc" ? "desc" : "asc";
       state.sortKey = nextKey;
+      savePreferences();
       renderSections();
     });
   });
@@ -331,6 +433,7 @@ function setSectionView(view) {
   state.sectionView = view;
   els.tableViewButton.setAttribute("aria-pressed", String(view === "table"));
   els.cardViewButton.setAttribute("aria-pressed", String(view === "cards"));
+  savePreferences();
   renderSections();
 }
 
@@ -350,6 +453,7 @@ function applyFilters() {
   });
 
   renderAll();
+  savePreferences();
 }
 
 function renderAll() {
@@ -547,7 +651,7 @@ function renderCard(row) {
   const attrs = row.attributes.length
     ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
     : `<span class="pill">None</span>`;
-  const enrollmentClass = row.filled >= 10 ? "high" : row.filled < 9 ? "low" : "mid";
+  const enrollmentClass = row.filled >= 10 ? "high" : "low";
 
   return `<article class="section-card">
     <div class="section-card-top">

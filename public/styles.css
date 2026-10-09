@@ -591,14 +591,6 @@ td {
   letter-spacing: 0.14em;
 }
 
-.enrollment-callout.mid {
-  color: var(--gold);
-}
-
-.enrollment-callout.mid strong {
-  background: #f7e2b8;
-}
-
 .enrollment-callout.low {
   color: #cf4350;
 }
