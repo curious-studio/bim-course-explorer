@@ -58,7 +58,6 @@ const els = {
   tableCount: $("tableCount"),
   tableViewButton: $("tableViewButton"),
   cardViewButton: $("cardViewButton"),
-  cardSortSelect: $("cardSortSelect"),
   exportButton: $("exportButton"),
 };
 
@@ -381,10 +380,12 @@ function bindEvents() {
   els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
   els.clearSubjectsButton.addEventListener("click", () => {
     state.selectedSubjects.clear();
+    state.recentSubjects = [];
     updatePickerFilter("subject");
   });
   els.clearFacultyButton.addEventListener("click", () => {
     state.selectedFaculty.clear();
+    state.recentFaculty = [];
     updatePickerFilter("faculty");
   });
   els.subjectOptions.addEventListener("click", (event) => {
@@ -420,12 +421,15 @@ function bindEvents() {
   els.exportButton.addEventListener("click", exportCsv);
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
   els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
-  els.cardSortSelect.addEventListener("change", () => {
-    const [key, dir] = els.cardSortSelect.value.split(":");
-    state.sortKey = key;
-    state.sortDir = dir === "desc" ? "desc" : "asc";
-    savePreferences();
-    renderSections();
+  document.querySelectorAll("button[data-card-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextKey = button.dataset.cardSort;
+      state.sortDir = state.sortKey === nextKey && state.sortDir === "asc" ? "desc" : "asc";
+      state.sortKey = nextKey;
+      syncCardSortButtons();
+      savePreferences();
+      renderSections();
+    });
   });
   document.querySelectorAll("th[data-sort]").forEach((th) => {
     th.addEventListener("click", () => {
@@ -521,8 +525,14 @@ function rememberPickerValue(kind, value) {
 function updatePickerSummary(kind) {
   const config = pickerConfig(kind);
   const selected = [...config.selected].sort();
-  config.summary.textContent = selected.length ? `${selected.length} selected: ${selected.join(", ")}` : config.all;
+  const display = kind === "faculty" ? selected.map(lastName) : selected;
+  config.summary.textContent = selected.length ? `${selected.length} selected: ${display.join(", ")}` : config.all;
   config.clearButton.disabled = selected.length === 0;
+}
+
+function lastName(name) {
+  const parts = String(name).trim().split(/\s+/);
+  return parts[parts.length - 1] || name;
 }
 
 function setSectionView(view) {
@@ -535,8 +545,24 @@ function setSectionView(view) {
 }
 
 function syncCardSortControl() {
-  const value = `${state.sortKey}:${state.sortDir}`;
-  els.cardSortSelect.value = [...els.cardSortSelect.options].some((option) => option.value === value) ? value : "course:asc";
+  syncCardSortButtons();
+}
+
+function syncCardSortButtons() {
+  document.querySelectorAll("button[data-card-sort]").forEach((button) => {
+    const active = button.dataset.cardSort === state.sortKey;
+    button.setAttribute("aria-pressed", String(active));
+    button.textContent = active ? `${sortLabel(button.dataset.cardSort)} ${state.sortDir === "asc" ? "Asc" : "Desc"}` : sortLabel(button.dataset.cardSort);
+  });
+}
+
+function sortLabel(key) {
+  return {
+    course: "Course",
+    faculty: "Faculty",
+    filled: "Enrollment",
+    delivery: "Delivery",
+  }[key] ?? key;
 }
 
 function applyFilters() {

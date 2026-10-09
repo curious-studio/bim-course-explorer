@@ -120,7 +120,7 @@ button[aria-pressed="true"] {
 }
 
 .primary-controls {
-  grid-template-columns: minmax(320px, 2fr) minmax(220px, 1fr);
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
 }
 
 label {
@@ -324,12 +324,21 @@ select {
   gap: 8px;
 }
 
-.card-sort-control {
-  min-width: 150px;
+.card-sort-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.card-sort-control select {
+.card-sort-buttons > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.card-sort-buttons button {
   min-height: 34px;
+  padding: 0 10px;
 }
 
 .view-toggle {
@@ -809,9 +818,13 @@ td {
   }
 
   .view-toggle,
-  .card-sort-control,
+  .card-sort-buttons,
   .section-actions > button {
     width: 100%;
+  }
+
+  .card-sort-buttons {
+    flex-wrap: wrap;
   }
 
   .view-toggle button {
