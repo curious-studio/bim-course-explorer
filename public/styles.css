@@ -492,38 +492,212 @@ td {
 
 .section-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(430px, 1fr));
+  gap: 14px;
   margin-top: 4px;
 }
 
 .section-card {
   display: grid;
-  gap: 12px;
-  min-height: 230px;
+  grid-template-rows: auto 1fr;
+  gap: 28px;
+  min-height: 320px;
   border: 1px solid #e1e7ef;
   border-radius: 8px;
-  background: #fbfdff;
-  padding: 14px;
+  background: #fff;
+  padding: 24px;
 }
 
-.section-card header {
+.section-card-top,
+.section-card-bottom {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.section-card-main {
+  min-width: 0;
+}
+
+.section-card-kicker {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
   gap: 12px;
+  margin-bottom: 8px;
+  color: #000;
+  font-size: 1rem;
+}
+
+.section-card-kicker .course-link {
+  color: #000;
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.section-card-kicker span {
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .section-card h3 {
-  margin: 0 0 3px;
-  font-size: 1rem;
-  line-height: 1.2;
+  margin: 0 0 10px;
+  color: #000;
+  font-size: 2.05rem;
+  font-weight: 900;
+  line-height: 0.98;
 }
 
 .section-card p {
   margin: 0;
+}
+
+.section-card-main p {
+  color: #000;
+  font-size: 1.02rem;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.enrollment-callout {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  min-width: 116px;
+  color: var(--green);
+  text-transform: uppercase;
+}
+
+.enrollment-callout strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 94px;
+  min-height: 58px;
+  border-radius: 999px;
+  background: #a7e3c4;
+  padding: 0 20px;
+  font-size: 2.4rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.enrollment-callout span {
+  font-size: 1.02rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.enrollment-callout.mid {
+  color: var(--gold);
+}
+
+.enrollment-callout.mid strong {
+  background: #f7e2b8;
+}
+
+.enrollment-callout.low {
+  color: #cf4350;
+}
+
+.enrollment-callout.low strong {
+  background: #efd1d6;
+}
+
+.section-card-bottom {
+  align-items: end;
+}
+
+.meeting-block {
+  min-width: 0;
+}
+
+.meeting-lines {
+  display: grid;
+  gap: 8px;
+}
+
+.meeting-lines p {
+  color: #000;
+  font-size: 1.35rem;
+  line-height: 1.08;
+}
+
+.day-strip {
+  display: inline-grid;
+  overflow: hidden;
+  grid-template-columns: repeat(5, 42px);
+  width: max-content;
+  border-radius: 999px;
+  background: #e6e6e6;
+}
+
+.day-strip span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border-right: 1px solid #fff;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.day-strip span:last-child {
+  border-right: 0;
+}
+
+.day-strip .is-active {
+  background: #000;
+}
+
+.internet-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  border: 4px solid #000;
+  border-radius: 999px;
+  padding: 0 32px;
+  color: #000;
+  font-size: 1.85rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.section-card-details {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 0;
+  text-align: right;
+}
+
+.open-seats {
+  color: #000;
+  font-size: 1.28rem;
+  line-height: 1.1;
+}
+
+.faculty-name {
+  color: #000;
+  font-size: 1.7rem;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.waitlist-note {
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.card-attributes {
+  justify-content: flex-end;
 }
 
 .card-meta {
@@ -602,5 +776,45 @@ td {
 
   .card-meta {
     grid-template-columns: 1fr;
+  }
+
+  .section-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .section-card {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .section-card-top,
+  .section-card-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .enrollment-callout {
+    justify-items: start;
+  }
+
+  .section-card-details {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .card-attributes {
+    justify-content: flex-start;
+  }
+
+  .section-card h3 {
+    font-size: 1.65rem;
+  }
+
+  .faculty-name {
+    font-size: 1.45rem;
+  }
+
+  .internet-pill {
+    max-width: 100%;
+    font-size: 1.35rem;
   }
 }

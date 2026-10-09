@@ -84,8 +84,10 @@ function getMeeting(section) {
       delivery: "unknown",
       label: "Unknown",
       room: "Unknown",
+      time: "",
       meeting: "Meeting TBD",
       days: [],
+      dayKeys: [],
     };
   }
 
@@ -99,7 +101,9 @@ function getMeeting(section) {
     ["friday", "F"],
     ["saturday", "Sa"],
   ];
-  const days = dayMap.filter(([key]) => meeting[key]).map(([, label]) => label);
+  const activeDays = dayMap.filter(([key]) => meeting[key]);
+  const days = activeDays.map(([, label]) => label);
+  const dayKeys = activeDays.map(([key]) => key);
   const time = meeting.beginTime && meeting.endTime ? `${formatTime(meeting.beginTime)}-${formatTime(meeting.endTime)}` : "";
 
   if (isInternet) {
@@ -107,8 +111,10 @@ function getMeeting(section) {
       delivery: "internet",
       label: "Internet",
       room: "Internet",
+      time,
       meeting: [time, "Internet"].filter(Boolean).join(" "),
       days,
+      dayKeys,
     };
   }
 
@@ -120,8 +126,10 @@ function getMeeting(section) {
     delivery: "campus",
     label: "Campus",
     room,
+    time,
     meeting: [days.join(""), time, room].filter(Boolean).join(" "),
     days,
+    dayKeys,
   };
 }
 
@@ -539,28 +547,58 @@ function renderCard(row) {
   const attrs = row.attributes.length
     ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
     : `<span class="pill">None</span>`;
-  const openClass = row.available > 0 ? "open" : "full";
-  const openText = row.available > 0 ? `${number.format(row.available)} open` : "Full";
+  const occupancy = row.max ? row.filled / row.max : 0;
+  const enrollmentClass = occupancy >= 0.7 ? "high" : occupancy <= 0.33 ? "low" : "mid";
 
   return `<article class="section-card">
-    <header>
-      <div>
-        <h3><a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a></h3>
-        <p>${escapeHtml(row.title)}</p>
+    <div class="section-card-top">
+      <div class="section-card-main">
+        <div class="section-card-kicker">
+          <a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a>
+          <span>CRN ${escapeHtml(row.crn)}</span>
+        </div>
+        <h3>${escapeHtml(row.title)}</h3>
+        <p>${escapeHtml(row.credits)} credits</p>
       </div>
-      <span class="pill ${openClass}">${openText}</span>
-    </header>
-    <div class="card-meta">
-      <div><span>CRN</span><strong>${escapeHtml(row.crn)}</strong></div>
-      <div><span>Seats</span><strong>${number.format(row.filled)} / ${number.format(row.max)}</strong></div>
-      <div><span>Delivery</span><strong>${escapeHtml(row.label)}</strong></div>
-      <div><span>Credits</span><strong>${escapeHtml(row.credits)}</strong></div>
-      <div class="card-wide"><span>Meeting</span><strong>${escapeHtml(row.meeting || "Meeting TBD")}</strong></div>
-      <div class="card-wide"><span>Faculty</span><strong>${escapeHtml(row.faculty.join(", ") || "None assigned")}</strong></div>
-      ${row.wait ? `<div><span>Waitlist</span><strong>${number.format(row.wait)}</strong></div>` : ""}
+      <div class="enrollment-callout ${enrollmentClass}" aria-label="${number.format(row.filled)} students enrolled">
+        <strong>${number.format(row.filled)}</strong>
+        <span>Enrolled</span>
+      </div>
     </div>
-    <div class="pill-list">${attrs}</div>
+    <div class="section-card-bottom">
+      <div class="meeting-block">${renderMeetingVisual(row)}</div>
+      <div class="section-card-details">
+        <p class="open-seats">Open seats: ${number.format(row.available)} / ${number.format(row.max)}</p>
+        <p class="faculty-name">${escapeHtml(row.faculty.join(", ") || "None assigned")}</p>
+        ${row.wait ? `<p class="waitlist-note">${number.format(row.wait)} waitlisted</p>` : ""}
+        <div class="pill-list card-attributes">${attrs}</div>
+      </div>
+    </div>
   </article>`;
+}
+
+function renderMeetingVisual(row) {
+  if (row.delivery === "internet") {
+    return `<div class="internet-pill">Internet</div>`;
+  }
+
+  const weekdays = [
+    ["monday", "M"],
+    ["tuesday", "T"],
+    ["wednesday", "W"],
+    ["thursday", "T"],
+    ["friday", "F"],
+  ];
+  const activeDays = new Set(row.dayKeys ?? []);
+  const dayStrip = weekdays
+    .map(([key, label]) => `<span class="${activeDays.has(key) ? "is-active" : ""}">${label}</span>`)
+    .join("");
+
+  return `<div class="meeting-lines">
+    <p>${escapeHtml(row.room || "Location TBD")}</p>
+    <p>${escapeHtml(row.time || "Time TBD")}</p>
+    <div class="day-strip" aria-label="${escapeHtml(row.days.length ? row.days.join(", ") : "Days TBD")}">${dayStrip}</div>
+  </div>`;
 }
 
 function emptyMessage(message) {
