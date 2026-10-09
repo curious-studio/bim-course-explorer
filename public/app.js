@@ -1,0 +1,557 @@
+const API_BASE = "/api";
+
+const state = {
+  terms: [],
+  selectedTerm: "",
+  termData: null,
+  history: null,
+  rows: [],
+  filtered: [],
+  sortKey: "course",
+  sortDir: "asc",
+  openOnly: false,
+};
+
+const $ = (id) => document.getElementById(id);
+const number = new Intl.NumberFormat("en-US");
+const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+
+const els = {
+  termSelect: $("termSelect"),
+  searchInput: $("searchInput"),
+  subjectSelect: $("subjectSelect"),
+  deliverySelect: $("deliverySelect"),
+  genEdSelect: $("genEdSelect"),
+  openOnlyButton: $("openOnlyButton"),
+  resetButton: $("resetButton"),
+  status: $("status"),
+  sectionsMetric: $("sectionsMetric"),
+  filledMetric: $("filledMetric"),
+  occupancyMetric: $("occupancyMetric"),
+  waitlistMetric: $("waitlistMetric"),
+  historyChart: $("historyChart"),
+  deliverySummary: $("deliverySummary"),
+  deliveryBars: $("deliveryBars"),
+  subjectBars: $("subjectBars"),
+  facultyList: $("facultyList"),
+  roomList: $("roomList"),
+  sectionsBody: $("sectionsBody"),
+  tableCount: $("tableCount"),
+  exportButton: $("exportButton"),
+};
+
+async function fetchJson(path) {
+  const response = await fetch(`${API_BASE}${path}`);
+  if (!response.ok) {
+    throw new Error(`BIM returned ${response.status} for ${path}`);
+  }
+  return response.json();
+}
+
+function setStatus(message, visible = true) {
+  els.status.textContent = message;
+  els.status.classList.toggle("is-visible", visible);
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function decodeHtml(value) {
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value ?? "";
+  return textarea.value.trim();
+}
+
+function getMeeting(section) {
+  const meeting = section.meetingsFaculty?.[0]?.meetingTime;
+  if (!meeting) {
+    return {
+      delivery: "unknown",
+      label: "Unknown",
+      room: "Unknown",
+      meeting: "Meeting TBD",
+      days: [],
+    };
+  }
+
+  const isInternet = meeting.buildingDescription === "Internet";
+  const dayMap = [
+    ["sunday", "Su"],
+    ["monday", "M"],
+    ["tuesday", "Tu"],
+    ["wednesday", "W"],
+    ["thursday", "Th"],
+    ["friday", "F"],
+    ["saturday", "Sa"],
+  ];
+  const days = dayMap.filter(([key]) => meeting[key]).map(([, label]) => label);
+  const time = meeting.beginTime && meeting.endTime ? `${formatTime(meeting.beginTime)}-${formatTime(meeting.endTime)}` : "";
+
+  if (isInternet) {
+    return {
+      delivery: "internet",
+      label: "Internet",
+      room: "Internet",
+      meeting: [time, "Internet"].filter(Boolean).join(" "),
+      days,
+    };
+  }
+
+  const room = [meeting.buildingDescription || "Location TBD", meeting.room && meeting.room !== "INTERNET" ? meeting.room : ""]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    delivery: "campus",
+    label: "Campus",
+    room,
+    meeting: [days.join(""), time, room].filter(Boolean).join(" "),
+    days,
+  };
+}
+
+function formatTime(value) {
+  const text = String(value).padStart(4, "0");
+  let hour = Number(text.slice(0, 2));
+  const minute = text.slice(2);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12 || 12;
+  return `${hour}:${minute} ${suffix}`;
+}
+
+function getCreditHours(section) {
+  if (section.creditHourIndicator && !section.creditHours) {
+    return `${section.creditHourLow} ${section.creditHourIndicator} ${section.creditHourHigh}`;
+  }
+  return String(section.creditHours ?? section.creditHourLow ?? "");
+}
+
+function normalizeSection(section) {
+  const meeting = getMeeting(section);
+  const faculty = section.faculty?.map((item) => item.displayName).filter(Boolean) ?? [];
+  const attrs = section.sectionAttributes?.map((item) => ({
+    code: item.code,
+    description: decodeHtml(item.description),
+  })) ?? [];
+  const max = Number(section.maximumEnrollment) || 0;
+  const available = Number(section.seatsAvailable) || 0;
+  const filled = Math.max(0, max - available);
+  const course = `${section.subject}${section.courseNumber}-${section.sequenceNumber}`;
+
+  return {
+    raw: section,
+    crn: section.courseReferenceNumber,
+    subject: section.subject,
+    courseNumber: section.courseNumber,
+    sequence: section.sequenceNumber,
+    course,
+    title: section.courseTitle,
+    credits: getCreditHours(section),
+    max,
+    available,
+    filled,
+    wait: Number(section.waitCount) || 0,
+    faculty,
+    attributes: attrs,
+    ...meeting,
+    search: [
+      section.courseReferenceNumber,
+      section.subject,
+      section.courseNumber,
+      section.sequenceNumber,
+      section.courseTitle,
+      faculty.join(" "),
+      attrs.map((attr) => `${attr.code} ${attr.description}`).join(" "),
+      meeting.room,
+      meeting.meeting,
+    ].join(" ").toLowerCase(),
+  };
+}
+
+async function initialize() {
+  bindEvents();
+
+  try {
+    const [terms, history] = await Promise.all([
+      fetchJson("/history/api/terms"),
+      fetchJson("/history/api/enrollment").catch(() => null),
+    ]);
+
+    state.terms = terms;
+    state.history = history;
+    els.termSelect.innerHTML = terms
+      .map((term) => `<option value="${term.code}">${escapeHtml(term.description)}</option>`)
+      .join("");
+    state.selectedTerm = getDefaultTerm(terms, history);
+    els.termSelect.value = state.selectedTerm;
+    await loadTerm(state.selectedTerm);
+    if (history) drawHistoryChart(history);
+  } catch (error) {
+    setStatus(`Could not load BIM data. ${error.message}. If this page is opened from another domain, the BIM server may need to allow browser cross-origin requests.`);
+  }
+}
+
+function getDefaultTerm(terms, history) {
+  const activeCodes = new Set();
+  history?.name?.forEach((code, index) => {
+    if (Number(history.students?.[index]) > 0) activeCodes.add(code);
+  });
+  return terms.find((term) => activeCodes.has(term.code))?.code ?? terms[0]?.code ?? "";
+}
+
+async function loadTerm(term) {
+  setStatus("Loading term data...");
+  state.selectedTerm = term;
+  state.termData = await fetchJson(`/data/${term}tiny.json`);
+  state.rows = (state.termData.classes ?? []).map(normalizeSection);
+  hydrateFilters();
+  applyFilters();
+  setStatus(`Updated ${state.termData.updated}.`, true);
+}
+
+function hydrateFilters() {
+  const selectedSubject = els.subjectSelect.value;
+  const selectedGenEd = els.genEdSelect.value;
+  const subjects = [...new Set(state.rows.map((row) => row.subject))].sort();
+  const attrs = new Map();
+  state.rows.forEach((row) => {
+    row.attributes.forEach((attr) => attrs.set(attr.code, attr.description || attr.code));
+  });
+
+  els.subjectSelect.innerHTML = `<option value="">All subjects</option>${subjects
+    .map((subject) => `<option value="${escapeHtml(subject)}">${escapeHtml(subject)}</option>`)
+    .join("")}`;
+  els.subjectSelect.value = subjects.includes(selectedSubject) ? selectedSubject : "";
+
+  els.genEdSelect.innerHTML = `<option value="">All attributes</option>${[...attrs.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([code, description]) => `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(description)}</option>`)
+    .join("")}`;
+  els.genEdSelect.value = attrs.has(selectedGenEd) ? selectedGenEd : "";
+}
+
+function bindEvents() {
+  els.termSelect.addEventListener("change", () => loadTerm(els.termSelect.value));
+  [els.searchInput, els.subjectSelect, els.deliverySelect, els.genEdSelect].forEach((el) => {
+    el.addEventListener("input", applyFilters);
+  });
+  els.openOnlyButton.addEventListener("click", () => {
+    state.openOnly = !state.openOnly;
+    els.openOnlyButton.setAttribute("aria-pressed", String(state.openOnly));
+    applyFilters();
+  });
+  els.resetButton.addEventListener("click", () => {
+    els.searchInput.value = "";
+    els.subjectSelect.value = "";
+    els.deliverySelect.value = "";
+    els.genEdSelect.value = "";
+    state.openOnly = false;
+    els.openOnlyButton.setAttribute("aria-pressed", "false");
+    applyFilters();
+  });
+  els.exportButton.addEventListener("click", exportCsv);
+  document.querySelectorAll("th[data-sort]").forEach((th) => {
+    th.addEventListener("click", () => {
+      const nextKey = th.dataset.sort;
+      state.sortDir = state.sortKey === nextKey && state.sortDir === "asc" ? "desc" : "asc";
+      state.sortKey = nextKey;
+      renderTable();
+    });
+  });
+}
+
+function applyFilters() {
+  const query = els.searchInput.value.trim().toLowerCase();
+  const subject = els.subjectSelect.value;
+  const delivery = els.deliverySelect.value;
+  const genEd = els.genEdSelect.value;
+
+  state.filtered = state.rows.filter((row) => {
+    if (query && !row.search.includes(query)) return false;
+    if (subject && row.subject !== subject) return false;
+    if (delivery && row.delivery !== delivery) return false;
+    if (genEd && !row.attributes.some((attr) => attr.code === genEd)) return false;
+    if (state.openOnly && row.available <= 0) return false;
+    return true;
+  });
+
+  renderAll();
+}
+
+function renderAll() {
+  renderMetrics();
+  renderDelivery();
+  renderSubjectBars();
+  renderRanks("facultyList", facultyStats(state.filtered), "sections");
+  renderRanks("roomList", roomStats(state.filtered), "sections");
+  renderTable();
+}
+
+function totals(rows) {
+  return rows.reduce(
+    (acc, row) => {
+      acc.sections += 1;
+      acc.filled += row.filled;
+      acc.available += row.available;
+      acc.max += row.max;
+      acc.wait += row.wait;
+      return acc;
+    },
+    { sections: 0, filled: 0, available: 0, max: 0, wait: 0 },
+  );
+}
+
+function renderMetrics() {
+  const total = totals(state.filtered);
+  els.sectionsMetric.textContent = number.format(total.sections);
+  els.filledMetric.textContent = `${number.format(total.filled)} / ${number.format(total.max)}`;
+  els.occupancyMetric.textContent = total.max ? `${percent.format((total.filled / total.max) * 100)}%` : "-";
+  els.waitlistMetric.textContent = number.format(total.wait);
+  els.tableCount.textContent = `${number.format(total.sections)} visible of ${number.format(state.rows.length)} sections`;
+}
+
+function renderDelivery() {
+  const counts = { campus: 0, internet: 0, unknown: 0 };
+  state.filtered.forEach((row) => {
+    counts[row.delivery] += 1;
+  });
+  const total = Math.max(1, state.filtered.length);
+  els.deliverySummary.textContent = `${number.format(state.filtered.length)} visible sections`;
+  els.deliveryBars.innerHTML = [
+    ["campus", "Campus"],
+    ["internet", "Internet"],
+    ["unknown", "Unknown"],
+  ]
+    .map(([key, label]) => {
+      const pct = (counts[key] / total) * 100;
+      return `<div class="delivery-row">
+        <header><strong>${label}</strong><span>${number.format(counts[key])} sections (${percent.format(pct)}%)</span></header>
+        <div class="track"><span class="fill ${key}" style="width:${pct}%"></span></div>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderSubjectBars() {
+  const stats = mapStats(state.filtered, (row) => row.subject);
+  const top = [...stats.entries()]
+    .map(([name, value]) => ({ name, ...value }))
+    .sort((a, b) => b.sections - a.sections)
+    .slice(0, 12);
+  const max = Math.max(1, ...top.map((item) => item.sections));
+  els.subjectBars.innerHTML = top.length
+    ? top
+        .map((item) => `<div class="bar-row">
+          <strong class="bar-label">${escapeHtml(item.name)}</strong>
+          <div class="bar-meter"><span style="width:${(item.sections / max) * 100}%"></span></div>
+          <span class="bar-value">${number.format(item.sections)} sections</span>
+        </div>`)
+        .join("")
+    : emptyMessage("No subjects match the current filters.");
+}
+
+function mapStats(rows, keyFn) {
+  const stats = new Map();
+  rows.forEach((row) => {
+    const key = keyFn(row);
+    if (!key) return;
+    const current = stats.get(key) ?? { sections: 0, filled: 0, max: 0 };
+    current.sections += 1;
+    current.filled += row.filled;
+    current.max += row.max;
+    stats.set(key, current);
+  });
+  return stats;
+}
+
+function facultyStats(rows) {
+  const stats = new Map();
+  rows.forEach((row) => {
+    const names = row.faculty.length ? row.faculty : ["None assigned"];
+    names.forEach((name) => {
+      const current = stats.get(name) ?? { sections: 0, filled: 0, max: 0 };
+      current.sections += 1 / names.length;
+      current.filled += row.filled / names.length;
+      current.max += row.max / names.length;
+      stats.set(name, current);
+    });
+  });
+  return stats;
+}
+
+function roomStats(rows) {
+  return mapStats(rows.filter((row) => row.delivery === "campus"), (row) => row.room);
+}
+
+function renderRanks(targetId, stats, unit) {
+  const rows = [...stats.entries()]
+    .map(([name, value]) => ({ name, ...value }))
+    .sort((a, b) => b.sections - a.sections)
+    .slice(0, 12);
+  $(targetId).innerHTML = rows.length
+    ? rows
+        .map((item) => `<div class="rank-row">
+          <span class="rank-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+          <span class="rank-value">${number.format(round(item.sections))} ${unit}</span>
+        </div>`)
+        .join("")
+    : emptyMessage("No rows match the current filters.");
+}
+
+function round(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function sortedRows() {
+  const dir = state.sortDir === "asc" ? 1 : -1;
+  return [...state.filtered].sort((a, b) => {
+    const av = sortValue(a, state.sortKey);
+    const bv = sortValue(b, state.sortKey);
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+    return String(av).localeCompare(String(bv)) * dir;
+  });
+}
+
+function sortValue(row, key) {
+  if (key === "faculty") return row.faculty.join(", ");
+  if (key === "attributes") return row.attributes.map((attr) => attr.code).join(", ");
+  if (key === "meeting") return row.meeting;
+  return row[key] ?? "";
+}
+
+function renderTable() {
+  const rows = sortedRows().slice(0, 600);
+  els.sectionsBody.innerHTML = rows.length
+    ? rows.map(renderRow).join("")
+    : `<tr><td colspan="8">${emptyMessage("No sections match the current filters.")}</td></tr>`;
+}
+
+function renderRow(row) {
+  const term = encodeURIComponent(state.selectedTerm);
+  const crn = encodeURIComponent(row.crn);
+  const attrs = row.attributes.length
+    ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
+    : `<span class="pill">None</span>`;
+  const openClass = row.available > 0 ? "open" : "full";
+  const openText = row.available > 0 ? `${number.format(row.available)} open` : "Full";
+
+  return `<tr>
+    <td><a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a><br><span>CRN ${escapeHtml(row.crn)}</span></td>
+    <td>${escapeHtml(row.title)}<br><span>${escapeHtml(row.credits)} credits</span></td>
+    <td>${number.format(row.filled)} / ${number.format(row.max)}</td>
+    <td><span class="pill ${openClass}">${openText}</span>${row.wait ? `<br><span>${number.format(row.wait)} waitlisted</span>` : ""}</td>
+    <td>${escapeHtml(row.label)}</td>
+    <td>${escapeHtml(row.meeting || "Meeting TBD")}</td>
+    <td>${escapeHtml(row.faculty.join(", ") || "None assigned")}</td>
+    <td><div class="pill-list">${attrs}</div></td>
+  </tr>`;
+}
+
+function emptyMessage(message) {
+  return `<p class="empty">${escapeHtml(message)}</p>`;
+}
+
+function drawHistoryChart(history) {
+  const canvas = els.historyChart;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const padding = { top: 24, right: 24, bottom: 70, left: 62 };
+  const seats = history.seats.map(Number);
+  const students = history.students.map(Number);
+  const labels = history.terms;
+  const max = Math.max(...seats, ...students, 1);
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const barWidth = Math.max(5, plotWidth / labels.length / 2.6);
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.strokeStyle = "#d8e0ea";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#607086";
+  ctx.font = "14px system-ui, sans-serif";
+
+  for (let i = 0; i <= 4; i += 1) {
+    const y = padding.top + plotHeight - (plotHeight * i) / 4;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+    ctx.fillText(number.format(Math.round((max * i) / 4)), 8, y + 4);
+  }
+
+  labels.forEach((label, index) => {
+    const x = padding.left + (plotWidth * index) / labels.length + plotWidth / labels.length / 2;
+    const seatHeight = (seats[index] / max) * plotHeight;
+    const studentHeight = (students[index] / max) * plotHeight;
+
+    ctx.fillStyle = "#17375e";
+    ctx.fillRect(x - barWidth, padding.top + plotHeight - seatHeight, barWidth, seatHeight);
+    ctx.fillStyle = "#0a7c86";
+    ctx.fillRect(x + 1, padding.top + plotHeight - studentHeight, barWidth, studentHeight);
+
+    if (index % 2 === 0 || labels.length < 16) {
+      ctx.save();
+      ctx.translate(x - 10, height - 12);
+      ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = "#607086";
+      ctx.fillText(label.replace("20", "'"), 0, 0);
+      ctx.restore();
+    }
+  });
+
+  drawLegend(ctx, width);
+}
+
+function drawLegend(ctx, width) {
+  const entries = [
+    ["#17375e", "Seats"],
+    ["#0a7c86", "Students"],
+  ];
+  let x = width - 190;
+  entries.forEach(([color, label]) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, 14, 14, 14);
+    ctx.fillStyle = "#18212f";
+    ctx.fillText(label, x + 20, 26);
+    x += 86;
+  });
+}
+
+function exportCsv() {
+  const headers = ["CRN", "Course", "Title", "Filled", "Maximum", "Open", "Waitlist", "Delivery", "Meeting", "Faculty", "Attributes"];
+  const lines = [headers, ...sortedRows().map((row) => [
+    row.crn,
+    row.course,
+    row.title,
+    row.filled,
+    row.max,
+    row.available,
+    row.wait,
+    row.label,
+    row.meeting,
+    row.faculty.join("; "),
+    row.attributes.map((attr) => attr.code).join("; "),
+  ])].map((line) => line.map(csvCell).join(","));
+
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `bim-${state.selectedTerm}-sections.csv`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+initialize();
