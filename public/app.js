@@ -378,6 +378,14 @@ function bindEvents() {
   });
   els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
   els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".subject-filter")) {
+      setSubjectPanelOpen(false);
+    }
+    if (!event.target.closest(".faculty-filter")) {
+      setFacultyPanelOpen(false);
+    }
+  });
   els.clearSubjectsButton.addEventListener("click", () => {
     state.selectedSubjects.clear();
     state.recentSubjects = [];
