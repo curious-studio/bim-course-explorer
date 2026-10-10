@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BIM Course Explorer</title>
+    <meta name="description" content="Interactive dashboard for BIM enrollment, sections, faculty, rooms, and delivery data.">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">BIM Course Explorer</p>
+        <h1>Enrollment, sections, faculty, rooms, and delivery mode in one workspace.</h1>
+      </div>
+      <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
+    </header>
+
+    <main>
+      <section class="controls" aria-label="Dashboard controls">
+        <div class="secondary-controls" aria-label="Secondary filters">
+          <label>
+            Term
+            <select id="termSelect"></select>
+          </label>
+          <label>
+            Search
+            <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
+          </label>
+          <button id="resetButton" type="button">Reset</button>
+        </div>
+
+        <div class="primary-controls" aria-label="Primary filters">
+          <div class="picker-filter subject-filter">
+            Subject
+            <button id="subjectToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
+              <span id="subjectSummary">All subjects</span>
+              <span aria-hidden="true">v</span>
+            </button>
+            <div id="subjectPanel" class="picker-panel" hidden>
+              <div class="picker-panel-title">
+                <strong>Subjects</strong>
+                <button id="clearSubjectsButton" type="button">Clear</button>
+              </div>
+              <div id="subjectOptions" class="picker-options" aria-label="Subject choices"></div>
+            </div>
+          </div>
+          <div class="picker-filter faculty-filter">
+            Faculty
+            <button id="facultyToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="facultyPanel">
+              <span id="facultySummary">All faculty</span>
+              <span aria-hidden="true">v</span>
+            </button>
+            <div id="facultyPanel" class="picker-panel" hidden>
+              <div class="picker-panel-title">
+                <strong>Faculty</strong>
+                <button id="clearFacultyButton" type="button">Clear</button>
+              </div>
+              <div id="facultyOptions" class="picker-options" aria-label="Faculty choices"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tertiary-controls" aria-label="Tertiary filters">
+          <label>
+            Delivery
+            <select id="deliverySelect">
+              <option value="">All modes</option>
+              <option value="internet">Internet</option>
+              <option value="campus">Campus</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+          <label>
+            Gen Ed
+            <select id="genEdSelect">
+              <option value="">All attributes</option>
+            </select>
+          </label>
+          <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
+        </div>
+      </section>
+
+      <div id="status" class="status" role="status">Loading BIM data...</div>
+
+      <section class="summary-grid" aria-label="Term summary">
+        <article>
+          <span>Visible Sections</span>
+          <strong id="sectionsMetric">-</strong>
+        </article>
+        <article>
+          <span>Seats Filled</span>
+          <strong id="filledMetric">-</strong>
+        </article>
+        <article>
+          <span>Occupancy</span>
+          <strong id="occupancyMetric">-</strong>
+        </article>
+        <article>
+          <span>Waitlist</span>
+          <strong id="waitlistMetric">-</strong>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-title table-title">
+          <div>
+            <h2>Sections</h2>
+            <span id="tableCount">-</span>
+          </div>
+          <div class="section-actions" aria-label="Section view and export controls">
+            <div class="view-toggle" role="group" aria-label="Section view">
+              <button id="tableViewButton" type="button" aria-pressed="true">Table</button>
+              <button id="cardViewButton" type="button" aria-pressed="false">Cards</button>
+            </div>
+            <div class="card-sort-buttons" aria-label="Card sort">
+              <span>Sort</span>
+              <button type="button" data-card-sort="course">Course</button>
+              <button type="button" data-card-sort="faculty">Faculty</button>
+              <button type="button" data-card-sort="filled">Enrollment</button>
+              <button type="button" data-card-sort="delivery">Delivery</button>
+            </div>
+            <button id="exportButton" type="button">Export visible CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="course">Course</th>
+                <th data-sort="title">Title</th>
+                <th data-sort="filled">Filled</th>
+                <th data-sort="available">Open</th>
+                <th data-sort="delivery">Delivery</th>
+                <th data-sort="meeting">Meeting</th>
+                <th data-sort="faculty">Faculty</th>
+                <th data-sort="attributes">Attributes</th>
+              </tr>
+            </thead>
+            <tbody id="sectionsBody"></tbody>
+          </table>
+        </div>
+        <div id="sectionsCards" class="section-card-grid" hidden></div>
+      </section>
+
+      <section class="insight-layout">
+        <article class="panel chart-panel">
+          <div class="panel-title">
+            <h2>Enrollment History</h2>
+            <span>Seats offered vs occupied</span>
+          </div>
+          <canvas id="historyChart" width="900" height="320" aria-label="Enrollment history chart"></canvas>
+        </article>
+
+        <article class="panel">
+          <div class="panel-title">
+            <h2>Delivery Mix</h2>
+            <span id="deliverySummary">-</span>
+          </div>
+          <div id="deliveryBars" class="stacked-bars"></div>
+        </article>
+      </section>
+
+      <section class="split-panels">
+        <article class="panel">
+          <div class="panel-title">
+            <h2>Faculty Loads</h2>
+            <span>Sorted by sections</span>
+          </div>
+          <div id="facultyList" class="rank-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-title">
+            <h2>Classrooms</h2>
+            <span>Campus meetings only</span>
+          </div>
+          <div id="roomList" class="rank-list"></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Subject Load</h2>
+          <span>Top subjects in current filter</span>
+        </div>
+        <div id="subjectBars" class="bar-list"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
