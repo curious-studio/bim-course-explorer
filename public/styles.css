@@ -590,13 +590,13 @@ td {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 8px;
-  color: #000;
-  font-size: 0.82rem;
+  color: #374151;
+  font-size: 0.74rem;
 }
 
 .section-card-kicker .course-link {
-  color: #000;
-  font-size: 0.92rem;
+  color: #374151;
+  font-size: 0.83rem;
   font-weight: 900;
 }
 
@@ -630,8 +630,8 @@ td {
   display: grid;
   justify-items: center;
   align-content: start;
-  gap: 8px;
-  min-width: 92px;
+  gap: 6px;
+  min-width: 74px;
   color: var(--green);
   text-transform: uppercase;
 }
@@ -640,18 +640,18 @@ td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 76px;
-  min-height: 46px;
+  min-width: 57px;
+  min-height: 35px;
   border-radius: 999px;
   background: #a7e3c4;
-  padding: 0 20px;
-  font-size: 1.85rem;
+  padding: 0 15px;
+  font-size: 1.39rem;
   font-weight: 900;
   line-height: 1;
 }
 
 .enrollment-callout span {
-  font-size: 0.8rem;
+  font-size: 0.6rem;
   font-weight: 900;
   letter-spacing: 0.14em;
 }
@@ -686,7 +686,7 @@ td {
 .day-strip {
   display: inline-grid;
   overflow: hidden;
-  grid-template-columns: repeat(5, 34px);
+  grid-template-columns: repeat(5, 26px);
   width: max-content;
   border-radius: 999px;
   background: #e6e6e6;
@@ -696,10 +696,10 @@ td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 31px;
+  min-height: 23px;
   border-right: 1px solid #fff;
   color: #fff;
-  font-size: 0.86rem;
+  font-size: 0.65rem;
   font-weight: 900;
 }
 
@@ -715,12 +715,12 @@ td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 31px;
-  border: 3px solid #000;
+  min-height: 23px;
+  border: 2px solid #000;
   border-radius: 999px;
-  padding: 0 14px;
+  padding: 0 11px;
   color: #000;
-  font-size: 0.86rem;
+  font-size: 0.65rem;
   font-weight: 900;
   letter-spacing: 0.16em;
   text-transform: uppercase;
