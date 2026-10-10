@@ -551,9 +551,17 @@ function syncCardSortControl() {
 function syncCardSortButtons() {
   document.querySelectorAll("button[data-card-sort]").forEach((button) => {
     const active = button.dataset.cardSort === state.sortKey;
+    const label = sortLabel(button.dataset.cardSort);
+    const direction = state.sortDir === "asc" ? "ascending" : "descending";
     button.setAttribute("aria-pressed", String(active));
-    button.textContent = active ? `${sortLabel(button.dataset.cardSort)} ${state.sortDir === "asc" ? "Asc" : "Desc"}` : sortLabel(button.dataset.cardSort);
+    button.setAttribute("aria-label", active ? `Sort by ${label}, ${direction}` : `Sort by ${label}`);
+    button.innerHTML = active ? `${label}${sortArrowSvg(state.sortDir)}` : label;
   });
+}
+
+function sortArrowSvg(direction) {
+  const path = direction === "asc" ? "M12 5l-5 6h10l-5-6z" : "M12 19l5-6H7l5 6z";
+  return `<svg class="sort-arrow" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
 }
 
 function sortLabel(key) {

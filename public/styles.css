@@ -337,8 +337,17 @@ select {
 }
 
 .card-sort-buttons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   min-height: 34px;
   padding: 0 10px;
+}
+
+.sort-arrow {
+  display: inline-block;
+  flex: 0 0 auto;
+  fill: currentColor;
 }
 
 .view-toggle {
