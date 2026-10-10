@@ -109,18 +109,40 @@ button[aria-pressed="true"] {
 }
 
 .secondary-controls,
-.primary-controls {
+.primary-controls,
+.tertiary-controls {
   display: grid;
   gap: 12px;
   align-items: end;
 }
 
 .secondary-controls {
-  grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1.6fr) minmax(140px, 0.7fr) minmax(150px, 0.9fr) auto auto;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(240px, 1.6fr) auto;
 }
 
 .primary-controls {
   grid-template-columns: repeat(2, minmax(260px, 1fr));
+}
+
+.tertiary-controls {
+  grid-template-columns: minmax(120px, 0.5fr) minmax(160px, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+  color: #7b8797;
+}
+
+.tertiary-controls label {
+  color: #7b8797;
+  font-size: 0.7rem;
+}
+
+.tertiary-controls select,
+.tertiary-controls button {
+  min-height: 32px;
+  border-color: #e5eaf0;
+  background: #fbfcfe;
+  color: #5f6c7c;
+  font-size: 0.82rem;
 }
 
 label {
@@ -590,12 +612,12 @@ td {
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 8px;
-  color: #374151;
+  color: #6b7280;
   font-size: 0.74rem;
 }
 
 .section-card-kicker .course-link {
-  color: #374151;
+  color: #6b7280;
   font-size: 0.83rem;
   font-weight: 900;
 }
@@ -686,7 +708,7 @@ td {
 .day-strip {
   display: inline-grid;
   overflow: hidden;
-  grid-template-columns: repeat(5, 26px);
+  grid-template-columns: repeat(5, 20px);
   width: max-content;
   border-radius: 999px;
   background: #e6e6e6;
@@ -696,10 +718,10 @@ td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 23px;
+  min-height: 17px;
   border-right: 1px solid #fff;
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.49rem;
   font-weight: 900;
 }
 
@@ -788,6 +810,7 @@ td {
 @media (max-width: 1120px) {
   .secondary-controls,
   .primary-controls,
+  .tertiary-controls,
   .insight-layout,
   .split-panels {
     grid-template-columns: 1fr 1fr;
@@ -809,6 +832,7 @@ td {
   .controls,
   .secondary-controls,
   .primary-controls,
+  .tertiary-controls,
   .summary-grid,
   .insight-layout,
   .split-panels {

@@ -27,22 +27,6 @@
             Search
             <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
           </label>
-          <label>
-            Delivery
-            <select id="deliverySelect">
-              <option value="">All modes</option>
-              <option value="internet">Internet</option>
-              <option value="campus">Campus</option>
-              <option value="unknown">Unknown</option>
-            </select>
-          </label>
-          <label>
-            Gen Ed
-            <select id="genEdSelect">
-              <option value="">All attributes</option>
-            </select>
-          </label>
-          <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
           <button id="resetButton" type="button">Reset</button>
         </div>
 
@@ -75,6 +59,25 @@
               <div id="facultyOptions" class="picker-options" aria-label="Faculty choices"></div>
             </div>
           </div>
+        </div>
+
+        <div class="tertiary-controls" aria-label="Tertiary filters">
+          <label>
+            Delivery
+            <select id="deliverySelect">
+              <option value="">All modes</option>
+              <option value="internet">Internet</option>
+              <option value="campus">Campus</option>
+              <option value="unknown">Unknown</option>
+            </select>
+          </label>
+          <label>
+            Gen Ed
+            <select id="genEdSelect">
+              <option value="">All attributes</option>
+            </select>
+          </label>
+          <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
         </div>
       </section>
 
