@@ -1,3 +1,33 @@
+@font-face {
+  font-family: "Saira";
+  font-style: normal;
+  font-weight: 400 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("./fonts/saira/saira-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Saira";
+  font-style: normal;
+  font-weight: 400 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("./fonts/saira/saira-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Saira";
+  font-style: normal;
+  font-weight: 400 900;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("./fonts/saira/saira-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
 :root {
   color-scheme: light;
   --ink: #18212f;
@@ -11,6 +41,7 @@
   --gold: #b07a1a;
   --red: #b84b4b;
   --shadow: 0 14px 34px rgba(24, 33, 47, 0.08);
+  --bold-letter-spacing: 0.006em;
 }
 
 * {
@@ -21,7 +52,7 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Saira", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button,
@@ -40,12 +71,25 @@ select {
   border-bottom: 1px solid var(--line);
 }
 
+.brand-block {
+  display: grid;
+  gap: 3px;
+}
+
 .eyebrow {
-  margin: 0 0 6px;
+  margin: 0;
   color: var(--teal);
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.app-version {
+  color: #8793a3;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -60,7 +104,34 @@ h1 {
   margin-bottom: 0;
   font-size: clamp(1.55rem, 3vw, 2.55rem);
   line-height: 1.08;
-  letter-spacing: 0;
+  letter-spacing: var(--bold-letter-spacing);
+}
+
+:where(
+  strong,
+  b,
+  h2,
+  h3,
+  button[aria-pressed="true"],
+  label,
+  .picker-filter,
+  .picker-section > span,
+  .picker-pill,
+  .card-sort-buttons > span,
+  .card-sort-buttons a,
+  .bar-label,
+  .rank-name,
+  .course-link,
+  .pill,
+  .section-card-kicker .course-link,
+  .enrollment-callout strong,
+  .day-strip span,
+  .faculty-name,
+  .waitlist-note,
+  .card-meta span,
+  .card-meta strong
+) {
+  letter-spacing: var(--bold-letter-spacing);
 }
 
 h2 {
@@ -90,6 +161,12 @@ button {
   align-items: center;
   padding: 0 14px;
   white-space: nowrap;
+}
+
+.header-actions {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
 }
 
 button {
@@ -272,11 +349,13 @@ select {
 
 .status {
   display: none;
-  padding: 12px 14px;
-  border: 1px solid #f0d899;
-  border-radius: 6px;
-  background: #fff7df;
+  max-width: 210px;
   color: #6f5112;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+  text-transform: uppercase;
 }
 
 .status.is-visible {
@@ -343,17 +422,23 @@ select {
   margin-bottom: 14px;
 }
 
-.section-actions,
 .view-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  margin: -4px 0 14px;
+}
+
 .card-sort-buttons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 
 .card-sort-buttons > span {
@@ -362,12 +447,26 @@ select {
   font-weight: 800;
 }
 
-.card-sort-buttons button {
+.card-sort-buttons a {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 34px;
-  padding: 0 10px;
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.card-sort-buttons a:hover,
+.card-sort-buttons a:focus-visible {
+  color: var(--teal);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.card-sort-buttons a[aria-current="true"] {
+  color: var(--teal);
 }
 
 .sort-arrow {
@@ -394,6 +493,14 @@ select {
 .view-toggle button[aria-pressed="true"] {
   background: #ffffff;
   box-shadow: 0 1px 4px rgba(24, 33, 47, 0.12);
+}
+
+.section-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
 }
 
 .chart-panel {
@@ -849,15 +956,23 @@ td {
     justify-content: center;
   }
 
-  .section-actions {
-    align-items: stretch;
+  .header-actions {
     width: 100%;
-    flex-direction: column;
+    justify-items: stretch;
+  }
+
+  .header-actions .status {
+    max-width: none;
+    text-align: left;
+  }
+
+  .section-actions {
+    align-items: flex-start;
+    width: 100%;
   }
 
   .view-toggle,
-  .card-sort-buttons,
-  .section-actions > button {
+  .section-footer button {
     width: 100%;
   }
 
@@ -867,6 +982,10 @@ td {
 
   .view-toggle button {
     flex: 1;
+  }
+
+  .section-footer {
+    justify-content: stretch;
   }
 
   .card-meta {

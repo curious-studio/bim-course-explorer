@@ -429,9 +429,10 @@ function bindEvents() {
   els.exportButton.addEventListener("click", exportCsv);
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
   els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
-  document.querySelectorAll("button[data-card-sort]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const nextKey = button.dataset.cardSort;
+  document.querySelectorAll("[data-card-sort]").forEach((control) => {
+    control.addEventListener("click", (event) => {
+      event.preventDefault();
+      const nextKey = control.dataset.cardSort;
       state.sortDir = state.sortKey === nextKey && state.sortDir === "asc" ? "desc" : "asc";
       state.sortKey = nextKey;
       syncCardSortButtons();
@@ -557,13 +558,13 @@ function syncCardSortControl() {
 }
 
 function syncCardSortButtons() {
-  document.querySelectorAll("button[data-card-sort]").forEach((button) => {
-    const active = button.dataset.cardSort === state.sortKey;
-    const label = sortLabel(button.dataset.cardSort);
+  document.querySelectorAll("[data-card-sort]").forEach((control) => {
+    const active = control.dataset.cardSort === state.sortKey;
+    const label = sortLabel(control.dataset.cardSort);
     const direction = state.sortDir === "asc" ? "ascending" : "descending";
-    button.setAttribute("aria-pressed", String(active));
-    button.setAttribute("aria-label", active ? `Sort by ${label}, ${direction}` : `Sort by ${label}`);
-    button.innerHTML = active ? `${label}${sortArrowSvg(state.sortDir)}` : label;
+    control.setAttribute("aria-current", String(active));
+    control.setAttribute("aria-label", active ? `Sort by ${label}, ${direction}` : `Sort by ${label}`);
+    control.innerHTML = active ? `${label}${sortArrowSvg(state.sortDir)}` : label;
   });
 }
 

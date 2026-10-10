@@ -9,11 +9,15 @@
   </head>
   <body>
     <header class="app-header">
-      <div>
+      <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
+        <span class="app-version">Version 0.2</span>
         <h1>Enrollment, sections, faculty, rooms, and delivery mode in one workspace.</h1>
       </div>
-      <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
+      <div class="header-actions">
+        <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
+        <div id="status" class="status" role="status">Loading BIM data...</div>
+      </div>
     </header>
 
     <main>
@@ -81,8 +85,6 @@
         </div>
       </section>
 
-      <div id="status" class="status" role="status">Loading BIM data...</div>
-
       <section class="summary-grid" aria-label="Term summary">
         <article>
           <span>Visible Sections</span>
@@ -108,19 +110,18 @@
             <h2>Sections</h2>
             <span id="tableCount">-</span>
           </div>
-          <div class="section-actions" aria-label="Section view and export controls">
-            <div class="view-toggle" role="group" aria-label="Section view">
-              <button id="tableViewButton" type="button" aria-pressed="true">Table</button>
-              <button id="cardViewButton" type="button" aria-pressed="false">Cards</button>
-            </div>
-            <div class="card-sort-buttons" aria-label="Card sort">
-              <span>Sort</span>
-              <button type="button" data-card-sort="course">Course</button>
-              <button type="button" data-card-sort="faculty">Faculty</button>
-              <button type="button" data-card-sort="filled">Enrollment</button>
-              <button type="button" data-card-sort="delivery">Delivery</button>
-            </div>
-            <button id="exportButton" type="button">Export visible CSV</button>
+          <div class="view-toggle" role="group" aria-label="Section view">
+            <button id="tableViewButton" type="button" aria-pressed="true">Table</button>
+            <button id="cardViewButton" type="button" aria-pressed="false">Cards</button>
+          </div>
+        </div>
+        <div class="section-actions" aria-label="Section sort controls">
+          <div class="card-sort-buttons" aria-label="Card sort">
+            <span>Sort</span>
+            <a href="#" data-card-sort="course">Course</a>
+            <a href="#" data-card-sort="faculty">Faculty</a>
+            <a href="#" data-card-sort="filled">Enrollment</a>
+            <a href="#" data-card-sort="delivery">Delivery</a>
           </div>
         </div>
         <div class="table-wrap">
@@ -141,6 +142,9 @@
           </table>
         </div>
         <div id="sectionsCards" class="section-card-grid" hidden></div>
+        <div class="section-footer">
+          <button id="exportButton" type="button">Export visible CSV</button>
+        </div>
       </section>
 
       <section class="insight-layout">

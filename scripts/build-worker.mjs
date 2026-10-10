@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,6 +18,7 @@ const worker = `const ASSETS = new Map([
   ["/index.html", { type: "text/html; charset=utf-8", body: ${JSON.stringify(html)} }],
   ["/styles.css", { type: "text/css; charset=utf-8", body: ${JSON.stringify(css)} }],
   ["/app.js", { type: "text/javascript; charset=utf-8", body: ${JSON.stringify(js)} }],
+  ${await fontAssetEntries()}
 ]);
 
 const BIM_BASE = "https://bim.inclass.today";
@@ -65,7 +66,8 @@ export default {
 
     const asset = ASSETS.get(url.pathname);
     if (asset) {
-      return new Response(asset.body, {
+      const body = asset.base64 ? Uint8Array.from(atob(asset.base64), (char) => char.charCodeAt(0)) : asset.body;
+      return new Response(body, {
         headers: securityHeaders(asset.type),
       });
     }
@@ -74,6 +76,33 @@ export default {
   },
 };
 `;
+
+async function fontAssetEntries() {
+  const fontRoot = resolve(publicRoot, "fonts");
+  const files = await collectFiles(fontRoot).catch(() => []);
+  return files
+    .filter((file) => file.endsWith(".woff2"))
+    .map(async (file) => {
+      const bytes = await readFile(file);
+      const route = `/${file.slice(publicRoot.length + 1).replaceAll("\\\\", "/")}`;
+      return `[${JSON.stringify(route)}, { type: "font/woff2", base64: ${JSON.stringify(bytes.toString("base64"))} }]`;
+    })
+    .reduce(async (pending, entry) => {
+      const entries = await pending;
+      entries.push(await entry);
+      return entries;
+    }, Promise.resolve([]))
+    .then((entries) => entries.join(",\n  "));
+}
+
+async function collectFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map((entry) => {
+    const path = resolve(directory, entry.name);
+    return entry.isDirectory() ? collectFiles(path) : path;
+  }));
+  return files.flat();
+}
 
 await rm(distRoot, { recursive: true, force: true });
 await mkdir(resolve(distRoot, "server"), { recursive: true });
