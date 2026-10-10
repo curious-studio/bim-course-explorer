@@ -3,8 +3,8 @@
   --ink: #18212f;
   --muted: #607086;
   --line: #d8e0ea;
-  --panel: #ffffff;
-  --page: #f5f7fa;
+  --panel: #eef3f7;
+  --page: #dce5ed;
   --navy: #17375e;
   --teal: #0a7c86;
   --green: #3d8b45;
@@ -615,7 +615,7 @@ td {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
   color: #6b7280;
   font-size: 0.74rem;
 }
@@ -633,11 +633,11 @@ td {
 }
 
 .section-card h3 {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   color: #000;
   font-size: 1.5rem;
   font-weight: 900;
-  line-height: 1.02;
+  line-height: 1;
 }
 
 .section-card p {
@@ -650,6 +650,7 @@ td {
   font-weight: 400;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  line-height: 1.05;
 }
 
 .enrollment-callout {
@@ -700,13 +701,13 @@ td {
 
 .meeting-lines {
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .meeting-lines p {
   color: #000;
-  font-size: 1rem;
-  line-height: 1.08;
+  font-size: 0.9rem;
+  line-height: 1.02;
 }
 
 .day-strip {
