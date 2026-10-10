@@ -1,4 +1,4 @@
-const API_BASE = "/api";
+const API_BASE = window.BIM_API_BASE ?? (location.hostname.endsWith("github.io") ? "./api" : "/api");
 const PREFERENCES_KEY = "bim-course-explorer.preferences.v1";
 const PREFERENCES_COOKIE = "bimCourseExplorerPrefs";
 
