@@ -41,7 +41,7 @@
   --gold: #b07a1a;
   --red: #b84b4b;
   --shadow: 0 14px 34px rgba(24, 33, 47, 0.08);
-  --bold-letter-spacing: 0.006em;
+  --bold-letter-spacing: 0.01em;
 }
 
 * {
@@ -67,8 +67,9 @@ select {
   justify-content: space-between;
   gap: 24px;
   padding: 28px clamp(18px, 4vw, 48px) 22px;
-  background: #ffffff;
-  border-bottom: 1px solid var(--line);
+  background: var(--teal);
+  border-bottom: 1px solid #07646d;
+  color: #f3fbfb;
 }
 
 .brand-block {
@@ -78,15 +79,15 @@ select {
 
 .eyebrow {
   margin: 0;
-  color: var(--teal);
+  color: #d7f3f1;
   font-size: 0.76rem;
   font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: var(--bold-letter-spacing);
   text-transform: uppercase;
 }
 
 .app-version {
-  color: #8793a3;
+  color: #b7e4e2;
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -110,24 +111,39 @@ h1 {
 :where(
   strong,
   b,
+  button,
+  .source-link,
+  .eyebrow,
+  .app-version,
+  .status,
+  .app-footer a,
   h2,
   h3,
-  button[aria-pressed="true"],
   label,
   .picker-filter,
   .picker-section > span,
   .picker-pill,
+  .summary-grid span,
+  .panel-title span,
+  .table-title span,
+  .faculty-column-headings,
   .card-sort-buttons > span,
   .card-sort-buttons a,
   .bar-label,
   .rank-name,
+  .rank-value,
+  .rank-extra,
   .course-link,
   .pill,
+  .delivery-row strong,
+  .delivery-row span,
   .section-card-kicker .course-link,
   .enrollment-callout strong,
+  .enrollment-callout span,
   .day-strip span,
   .faculty-name,
   .waitlist-note,
+  .open-seats,
   .card-meta span,
   .card-meta strong
 ) {
@@ -143,6 +159,36 @@ main {
   display: grid;
   gap: 18px;
   padding: 18px clamp(14px, 3vw, 42px) 42px;
+}
+
+.app-footer {
+  padding: 18px clamp(18px, 4vw, 48px);
+  border-top: 1px solid #07646d;
+  background: #07646d;
+  color: #d7f3f1;
+}
+
+.app-footer p {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.app-footer p + p {
+  margin-top: 4px;
+}
+
+.footer-colophon {
+  color: #b7e4e2;
+  font-size: 0.68rem;
+}
+
+.app-footer a {
+  color: #f3fbfb;
+  font-weight: 700;
+  text-decoration-color: rgba(243, 251, 251, 0.55);
+  text-underline-offset: 3px;
 }
 
 .source-link,
@@ -161,6 +207,18 @@ button {
   align-items: center;
   padding: 0 14px;
   white-space: nowrap;
+}
+
+.app-header .source-link {
+  border-color: rgba(243, 251, 251, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+  color: #f3fbfb;
+}
+
+.app-header .source-link:hover,
+.app-header .source-link:focus-visible {
+  border-color: #f3fbfb;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .header-actions {
@@ -194,11 +252,13 @@ button[aria-pressed="true"] {
 }
 
 .secondary-controls {
-  grid-template-columns: minmax(120px, 1fr) minmax(240px, 3fr) minmax(96px, 1fr);
+  grid-template-columns: minmax(120px, min(25%, 300px)) minmax(240px, 1fr) minmax(96px, 300px);
 }
 
 .secondary-controls #resetButton {
   width: 100%;
+  max-width: 300px;
+  white-space: nowrap;
 }
 
 .primary-controls {
@@ -206,24 +266,32 @@ button[aria-pressed="true"] {
 }
 
 .tertiary-controls {
-  grid-template-columns: minmax(120px, 0.5fr) minmax(160px, 0.8fr) auto;
+  grid-template-columns: minmax(120px, min(25%, 300px)) minmax(160px, 1fr) minmax(max-content, 300px);
   gap: 10px;
   align-items: end;
-  color: #7b8797;
+  color: #8d98a6;
 }
 
 .tertiary-controls label {
-  color: #7b8797;
+  color: #8d98a6;
   font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .tertiary-controls select,
 .tertiary-controls button {
   min-height: 32px;
   border-color: #e5eaf0;
-  background: #fbfcfe;
-  color: #5f6c7c;
+  background: var(--panel);
+  color: #7f8a99;
   font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.tertiary-controls #openOnlyButton {
+  width: 100%;
+  max-width: 300px;
+  white-space: nowrap;
 }
 
 label {
@@ -322,7 +390,8 @@ select {
   gap: 6px;
 }
 
-.picker-section > span {
+.picker-section > span,
+.picker-section-title > span {
   color: var(--muted);
   font-size: 0.7rem;
   font-weight: 800;
@@ -331,6 +400,23 @@ select {
 
 .picker-section > span:empty {
   display: none;
+}
+
+.picker-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker-recent-clear {
+  min-height: 22px;
+  border-color: var(--line);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 500;
 }
 
 .picker-pill-list {
@@ -347,12 +433,20 @@ select {
   font-weight: 800;
 }
 
+.picker-pill[aria-pressed="true"] {
+  border-color: var(--line);
+  background: #f5f7fa;
+  color: #9aa5b3;
+  font-weight: 700;
+}
+
 .status {
   display: none;
   max-width: 210px;
-  color: #6f5112;
+  color: #d7f3f1;
   font-size: 0.58rem;
-  font-weight: 700;
+  font-weight: 400;
+  letter-spacing: 0.06em;
   line-height: 1.2;
   text-align: right;
   text-transform: uppercase;
@@ -382,6 +476,7 @@ select {
 }
 
 .summary-grid article {
+  background: #fff;
   min-height: 104px;
   padding: 16px;
 }
@@ -396,6 +491,7 @@ select {
 .summary-grid strong {
   display: block;
   margin-top: 10px;
+  color: var(--teal);
   font-size: clamp(1.55rem, 4vw, 2.35rem);
   line-height: 1;
 }
@@ -405,7 +501,7 @@ select {
 }
 
 .split-panels {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
 }
 
 .panel {
@@ -420,6 +516,13 @@ select {
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 14px;
+}
+
+.faculty-column-headings {
+  display: grid;
+  grid-template-columns: minmax(86px, max-content) minmax(112px, max-content);
+  gap: 8px;
+  text-align: right;
 }
 
 .view-toggle {
@@ -472,6 +575,8 @@ select {
 .sort-arrow {
   display: inline-block;
   flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
   fill: currentColor;
 }
 
@@ -552,7 +657,7 @@ canvas {
 }
 
 .fill.internet {
-  background: var(--green);
+  background: color-mix(in srgb, var(--teal) 62%, white);
 }
 
 .fill.unknown {
@@ -601,15 +706,34 @@ canvas {
 .rank-value {
   min-width: 98px;
   color: var(--muted);
+  font-weight: 400;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .rank-name {
   overflow: hidden;
-  font-weight: 700;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.rank-list.has-extra {
+  gap: 6px;
+}
+
+.rank-list.has-extra .rank-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, max-content) minmax(112px, max-content);
+  gap: 8px;
+  align-items: center;
+}
+
+.rank-extra {
+  color: var(--muted);
+  font-weight: 400;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .table-panel {
@@ -698,8 +822,8 @@ td {
 .section-card {
   display: grid;
   grid-template-rows: auto 1fr;
-  gap: 24px;
-  min-height: 286px;
+  gap: 21px;
+  min-height: 258px;
   border: 1px solid #e1e7ef;
   border-radius: 8px;
   background: #fff;
@@ -709,7 +833,7 @@ td {
 .section-card-top,
 .section-card-bottom {
   display: grid;
-  gap: 18px;
+  gap: 16px;
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
@@ -766,8 +890,11 @@ td {
   align-content: start;
   gap: 6px;
   min-width: 74px;
-  color: var(--green);
   text-transform: uppercase;
+}
+
+.enrollment-callout.high {
+  color: var(--teal);
 }
 
 .enrollment-callout strong {
@@ -782,6 +909,10 @@ td {
   font-size: 1.39rem;
   font-weight: 900;
   line-height: 1;
+}
+
+.enrollment-callout.high strong {
+  background: color-mix(in srgb, var(--teal) 22%, white);
 }
 
 .enrollment-callout span {
@@ -876,7 +1007,7 @@ td {
 
 .faculty-name {
   color: #000;
-  font-size: 1.28rem;
+  font-size: 1.1rem;
   font-weight: 900;
   line-height: 1.05;
 }
@@ -920,9 +1051,7 @@ td {
 }
 
 @media (max-width: 1120px) {
-  .secondary-controls,
   .primary-controls,
-  .tertiary-controls,
   .insight-layout,
   .split-panels {
     grid-template-columns: 1fr 1fr;

@@ -4,16 +4,18 @@ const PREFERENCES_COOKIE = "bimCourseExplorerPrefs";
 
 const state = {
   terms: [],
-  selectedTerm: "",
+  selectedTerms: new Set(),
+  termDataByCode: new Map(),
   termData: null,
   history: null,
   rows: [],
   filtered: [],
   selectedSubjects: new Set(),
   selectedFaculty: new Set(),
+  recentTerms: [],
   recentSubjects: [],
   recentFaculty: [],
-  pickerValues: { subject: [], faculty: [] },
+  pickerValues: { term: [], subject: [], faculty: [] },
   sortKey: "course",
   sortDir: "asc",
   sectionView: "cards",
@@ -24,9 +26,14 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat("en-US");
 const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+let historyResizeObserver = null;
 
 const els = {
-  termSelect: $("termSelect"),
+  termToggle: $("termToggle"),
+  termSummary: $("termSummary"),
+  termPanel: $("termPanel"),
+  termOptions: $("termOptions"),
+  clearTermsButton: $("clearTermsButton"),
   searchInput: $("searchInput"),
   subjectToggle: $("subjectToggle"),
   subjectSummary: $("subjectSummary"),
@@ -46,7 +53,7 @@ const els = {
   sectionsMetric: $("sectionsMetric"),
   filledMetric: $("filledMetric"),
   occupancyMetric: $("occupancyMetric"),
-  waitlistMetric: $("waitlistMetric"),
+  underenrolledMetric: $("underenrolledMetric"),
   historyChart: $("historyChart"),
   deliverySummary: $("deliverySummary"),
   deliveryBars: $("deliveryBars"),
@@ -161,7 +168,7 @@ function getCreditHours(section) {
   return String(section.creditHours ?? section.creditHourLow ?? "");
 }
 
-function normalizeSection(section) {
+function normalizeSection(section, termCode = "") {
   const meeting = getMeeting(section);
   const faculty = section.faculty?.map((item) => item.displayName).filter(Boolean) ?? [];
   const attrs = section.sectionAttributes?.map((item) => ({
@@ -172,9 +179,13 @@ function normalizeSection(section) {
   const available = Number(section.seatsAvailable) || 0;
   const filled = Math.max(0, max - available);
   const course = `${section.subject}${section.courseNumber}-${section.sequenceNumber}`;
+  const term = state.terms.find((item) => item.code === termCode);
+  const termLabel = term?.description ?? termCode;
 
   return {
     raw: section,
+    termCode,
+    termLabel,
     crn: section.courseReferenceNumber,
     subject: section.subject,
     courseNumber: section.courseNumber,
@@ -197,6 +208,8 @@ function normalizeSection(section) {
       section.courseTitle,
       faculty.join(" "),
       attrs.map((attr) => `${attr.code} ${attr.description}`).join(" "),
+      termLabel,
+      termCode,
       meeting.room,
       meeting.meeting,
     ].join(" ").toLowerCase(),
@@ -215,15 +228,12 @@ async function initialize() {
 
     state.terms = terms;
     state.history = history;
-    els.termSelect.innerHTML = terms
-      .map((term) => `<option value="${term.code}">${escapeHtml(term.description)}</option>`)
-      .join("");
-    state.selectedTerm = state.selectedTerm && terms.some((term) => term.code === state.selectedTerm)
-      ? state.selectedTerm
-      : getDefaultTerm(terms, history);
-    els.termSelect.value = state.selectedTerm;
+    state.selectedTerms = new Set([...state.selectedTerms].filter((code) => terms.some((term) => term.code === code)));
+    state.recentTerms = state.recentTerms.filter((code) => terms.some((term) => term.code === code));
+    if (!state.selectedTerms.size) state.selectedTerms.add(getDefaultTerm(terms, history));
+    renderPickerOptions("term", terms.map((term) => term.code));
     applyStoredControls();
-    await loadTerm(state.selectedTerm);
+    await loadSelectedTerms();
     if (history) drawHistoryChart(history);
   } catch (error) {
     setStatus(`Could not load BIM data. ${error.message}. If this page is opened from another domain, the BIM server may need to allow browser cross-origin requests.`);
@@ -238,14 +248,37 @@ function getDefaultTerm(terms, history) {
   return terms.find((term) => activeCodes.has(term.code))?.code ?? terms[0]?.code ?? "";
 }
 
-async function loadTerm(term) {
-  setStatus("Loading term data...");
-  state.selectedTerm = term;
-  state.termData = await fetchJson(`/data/${term}tiny.json`);
-  state.rows = (state.termData.classes ?? []).map(normalizeSection);
+async function getTermData(term) {
+  if (!state.termDataByCode.has(term)) {
+    state.termDataByCode.set(term, fetchJson(`/data/${term}tiny.json`));
+  }
+  return state.termDataByCode.get(term);
+}
+
+async function loadSelectedTerms() {
+  const termCodes = [...state.selectedTerms].filter((code) => state.terms.some((term) => term.code === code));
+  if (!termCodes.length) {
+    state.termData = null;
+    state.rows = [];
+    hydrateFilters();
+    applyFilters();
+    setStatus("No terms selected.", true);
+    return;
+  }
+
+  setStatus(`Loading ${number.format(termCodes.length)} term${termCodes.length === 1 ? "" : "s"}...`);
+  const termEntries = await Promise.all(termCodes.map(async (term) => [term, await getTermData(term)]));
+  state.termData = termEntries[0]?.[1] ?? null;
+  state.rows = termEntries.flatMap(([term, data]) => (data.classes ?? []).map((section) => normalizeSection(section, term)));
   hydrateFilters();
   applyFilters();
-  setStatus(`Updated ${state.termData.updated}.`, true);
+  setStatus(`Updated ${latestUpdated(termEntries.map(([, data]) => data.updated))}.`, true);
+}
+
+function latestUpdated(values) {
+  const dates = values.filter(Boolean).map((value) => ({ value, time: Date.parse(value) }));
+  const parsed = dates.filter((item) => Number.isFinite(item.time)).sort((a, b) => b.time - a.time);
+  return parsed[0]?.value ?? values.filter(Boolean).at(-1) ?? "unknown";
 }
 
 function hydrateFilters() {
@@ -275,9 +308,13 @@ function loadPreferences() {
   try {
     const saved = JSON.parse(readPreferenceStore() || "{}");
     if (!saved || typeof saved !== "object") return;
-    state.selectedTerm = typeof saved.term === "string" ? saved.term : "";
+    const savedTerms = Array.isArray(saved.terms)
+      ? saved.terms.filter((term) => typeof term === "string")
+      : typeof saved.term === "string" && saved.term ? [saved.term] : [];
+    state.selectedTerms = new Set(savedTerms);
     state.selectedSubjects = new Set(Array.isArray(saved.subjects) ? saved.subjects.filter((subject) => typeof subject === "string") : []);
     state.selectedFaculty = new Set(Array.isArray(saved.faculty) ? saved.faculty.filter((faculty) => typeof faculty === "string") : []);
+    state.recentTerms = Array.isArray(saved.recentTerms) ? saved.recentTerms.filter((term) => typeof term === "string") : [];
     state.recentSubjects = Array.isArray(saved.recentSubjects) ? saved.recentSubjects.filter((subject) => typeof subject === "string") : [];
     state.recentFaculty = Array.isArray(saved.recentFaculty) ? saved.recentFaculty.filter((faculty) => typeof faculty === "string") : [];
     state.sectionView = saved.sectionView === "table" ? "table" : "cards";
@@ -302,10 +339,12 @@ function applyStoredControls() {
 
 function savePreferences() {
   const payload = {
-    term: state.selectedTerm,
+    term: [...state.selectedTerms][0] ?? "",
+    terms: [...state.selectedTerms],
     search: els.searchInput.value,
     subjects: [...state.selectedSubjects],
     faculty: [...state.selectedFaculty],
+    recentTerms: state.recentTerms,
     recentSubjects: state.recentSubjects,
     recentFaculty: state.recentFaculty,
     delivery: els.deliverySelect.value,
@@ -369,22 +408,27 @@ function removePreferenceStore() {
 }
 
 function bindEvents() {
-  els.termSelect.addEventListener("change", () => {
-    savePreferences();
-    loadTerm(els.termSelect.value);
-  });
   [els.searchInput, els.deliverySelect, els.genEdSelect].forEach((el) => {
     el.addEventListener("input", applyFilters);
   });
+  els.termToggle.addEventListener("click", () => setTermPanelOpen(els.termPanel.hidden));
   els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
   els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
   document.addEventListener("click", (event) => {
-    if (!event.target.closest(".subject-filter")) {
+    if (!eventPathIncludes(event, "term-filter")) {
+      setTermPanelOpen(false);
+    }
+    if (!eventPathIncludes(event, "subject-filter")) {
       setSubjectPanelOpen(false);
     }
-    if (!event.target.closest(".faculty-filter")) {
+    if (!eventPathIncludes(event, "faculty-filter")) {
       setFacultyPanelOpen(false);
     }
+  });
+  els.clearTermsButton.addEventListener("click", () => {
+    state.selectedTerms.clear();
+    state.recentTerms = [];
+    updatePickerFilter("term");
   });
   els.clearSubjectsButton.addEventListener("click", () => {
     state.selectedSubjects.clear();
@@ -396,10 +440,16 @@ function bindEvents() {
     state.recentFaculty = [];
     updatePickerFilter("faculty");
   });
+  els.termOptions.addEventListener("click", (event) => {
+    event.stopPropagation();
+    handlePickerClick(event, "term");
+  });
   els.subjectOptions.addEventListener("click", (event) => {
+    event.stopPropagation();
     handlePickerClick(event, "subject");
   });
   els.facultyOptions.addEventListener("click", (event) => {
+    event.stopPropagation();
     handlePickerClick(event, "faculty");
   });
   els.openOnlyButton.addEventListener("click", () => {
@@ -409,10 +459,13 @@ function bindEvents() {
   });
   els.resetButton.addEventListener("click", () => {
     els.searchInput.value = "";
+    state.selectedTerms = new Set([getDefaultTerm(state.terms, state.history)].filter(Boolean));
     state.selectedSubjects.clear();
     state.selectedFaculty.clear();
+    state.recentTerms = [];
     state.recentSubjects = [];
     state.recentFaculty = [];
+    setTermPanelOpen(false);
     setSubjectPanelOpen(false);
     setFacultyPanelOpen(false);
     els.deliverySelect.value = "";
@@ -424,7 +477,8 @@ function bindEvents() {
     els.openOnlyButton.setAttribute("aria-pressed", "false");
     applyStoredControls();
     clearPreferences();
-    applyFilters();
+    renderPickerOptions("term", state.terms.map((term) => term.code));
+    loadSelectedTerms();
   });
   els.exportButton.addEventListener("click", exportCsv);
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
@@ -452,6 +506,15 @@ function bindEvents() {
   });
 }
 
+function eventPathIncludes(event, className) {
+  return event.composedPath().some((item) => item instanceof Element && item.classList.contains(className));
+}
+
+function setTermPanelOpen(isOpen) {
+  els.termToggle.setAttribute("aria-expanded", String(isOpen));
+  els.termPanel.hidden = !isOpen;
+}
+
 function setSubjectPanelOpen(isOpen) {
   els.subjectToggle.setAttribute("aria-expanded", String(isOpen));
   els.subjectPanel.hidden = !isOpen;
@@ -463,6 +526,20 @@ function setFacultyPanelOpen(isOpen) {
 }
 
 function pickerConfig(kind) {
+  if (kind === "term") {
+    return {
+      selected: state.selectedTerms,
+      recent: state.recentTerms,
+      options: els.termOptions,
+      summary: els.termSummary,
+      clearButton: els.clearTermsButton,
+      empty: "No terms available.",
+      all: "No terms selected",
+      dataAttr: "term",
+      label: termLabel,
+    };
+  }
+
   return kind === "faculty"
     ? {
         selected: state.selectedFaculty,
@@ -473,6 +550,7 @@ function pickerConfig(kind) {
         empty: "No faculty available.",
         all: "All faculty",
         dataAttr: "faculty",
+        label: (value) => value,
       }
     : {
         selected: state.selectedSubjects,
@@ -483,27 +561,36 @@ function pickerConfig(kind) {
         empty: "No subjects available.",
         all: "All subjects",
         dataAttr: "subject",
+        label: (value) => value,
       };
 }
 
 function renderPickerOptions(kind, values) {
   const config = pickerConfig(kind);
   state.pickerValues[kind] = values;
-  const recent = config.recent.filter((value) => values.includes(value)).slice(0, 8);
-  const remaining = values.filter((value) => !recent.includes(value));
+  const selected = [...config.selected].filter((value) => values.includes(value));
+  const recent = [...new Set([...selected, ...config.recent.filter((value) => values.includes(value))])].slice(0, 8);
   const renderButton = (value) => {
     const selected = config.selected.has(value);
     const index = values.indexOf(value);
-    return `<button class="picker-pill" type="button" data-${config.dataAttr}-index="${index}" aria-pressed="${selected}">${escapeHtml(value)}</button>`;
+    return `<button class="picker-pill" type="button" data-${config.dataAttr}-index="${index}" aria-pressed="${selected}">${escapeHtml(config.label(value))}</button>`;
   };
   config.options.innerHTML = values.length
-    ? `${recent.length ? `<div class="picker-section"><span>Recently selected</span><div class="picker-pill-list">${recent.map(renderButton).join("")}</div></div>` : ""}
-      <div class="picker-section"><span>${recent.length ? "All" : ""}</span><div class="picker-pill-list">${remaining.map(renderButton).join("")}</div></div>`
+    ? `${recent.length ? `<div class="picker-section"><div class="picker-section-title"><span>Recently selected</span><button class="picker-recent-clear" type="button" data-clear-recent="${kind}">Clear</button></div><div class="picker-pill-list">${recent.map(renderButton).join("")}</div></div>` : ""}
+      <div class="picker-section"><span>${recent.length ? "All" : ""}</span><div class="picker-pill-list">${values.map(renderButton).join("")}</div></div>`
     : emptyMessage(config.empty);
   updatePickerSummary(kind);
 }
 
 function updatePickerFilter(kind) {
+  if (kind === "term") {
+    renderPickerOptions("term", state.terms.map((term) => term.code));
+    loadSelectedTerms().catch((error) => {
+      setStatus(`Could not load selected terms. ${error.message}.`, true);
+    });
+    return;
+  }
+
   const values = kind === "faculty"
     ? [...new Set(state.rows.flatMap((row) => row.faculty.length ? row.faculty : ["None assigned"]))].sort()
     : [...new Set(state.rows.map((row) => row.subject))].sort();
@@ -513,6 +600,11 @@ function updatePickerFilter(kind) {
 
 function handlePickerClick(event, kind) {
   const config = pickerConfig(kind);
+  const clearRecentButton = event.target.closest("button[data-clear-recent]");
+  if (clearRecentButton) {
+    clearRecentPickerValues(kind);
+    return;
+  }
   const button = event.target.closest(`button[data-${config.dataAttr}-index]`);
   if (!button) return;
   const value = state.pickerValues[kind][Number(button.dataset[`${config.dataAttr}Index`])];
@@ -526,17 +618,36 @@ function handlePickerClick(event, kind) {
   updatePickerFilter(kind);
 }
 
+function clearRecentPickerValues(kind) {
+  const key = {
+    term: "recentTerms",
+    faculty: "recentFaculty",
+    subject: "recentSubjects",
+  }[kind];
+  state[key] = [];
+  renderPickerOptions(kind, state.pickerValues[kind]);
+  savePreferences();
+}
+
 function rememberPickerValue(kind, value) {
-  const key = kind === "faculty" ? "recentFaculty" : "recentSubjects";
+  const key = {
+    term: "recentTerms",
+    faculty: "recentFaculty",
+    subject: "recentSubjects",
+  }[kind];
   state[key] = [value, ...state[key].filter((item) => item !== value)].slice(0, 8);
 }
 
 function updatePickerSummary(kind) {
   const config = pickerConfig(kind);
   const selected = [...config.selected].sort();
-  const display = kind === "faculty" ? selected.map(lastName) : selected;
+  const display = kind === "faculty" ? selected.map(lastName) : selected.map(config.label);
   config.summary.textContent = selected.length ? `${selected.length} selected: ${display.join(", ")}` : config.all;
   config.clearButton.disabled = selected.length === 0;
+}
+
+function termLabel(code) {
+  return state.terms.find((term) => term.code === code)?.description ?? code;
 }
 
 function lastName(name) {
@@ -570,7 +681,7 @@ function syncCardSortButtons() {
 
 function sortArrowSvg(direction) {
   const path = direction === "asc" ? "M12 5l-5 6h10l-5-6z" : "M12 19l5-6H7l5 6z";
-  return `<svg class="sort-arrow" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
+  return `<svg class="sort-arrow" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
 }
 
 function sortLabel(key) {
@@ -610,7 +721,7 @@ function renderAll() {
   renderMetrics();
   renderDelivery();
   renderSubjectBars();
-  renderRanks("facultyList", facultyStats(state.filtered), "sections");
+  renderRanks("facultyList", facultyStats(state.filtered), "sections", "Underenrolled");
   renderRanks("roomList", roomStats(state.filtered), "sections");
   renderSections();
 }
@@ -631,10 +742,11 @@ function totals(rows) {
 
 function renderMetrics() {
   const total = totals(state.filtered);
+  const underenrolled = state.filtered.filter((row) => row.filled < 10).length;
   els.sectionsMetric.textContent = number.format(total.sections);
   els.filledMetric.textContent = `${number.format(total.filled)} / ${number.format(total.max)}`;
   els.occupancyMetric.textContent = total.max ? `${percent.format((total.filled / total.max) * 100)}%` : "-";
-  els.waitlistMetric.textContent = number.format(total.wait);
+  els.underenrolledMetric.textContent = number.format(underenrolled);
   els.tableCount.textContent = `${number.format(total.sections)} visible of ${number.format(state.rows.length)} sections`;
 }
 
@@ -646,7 +758,7 @@ function renderDelivery() {
   const total = Math.max(1, state.filtered.length);
   els.deliverySummary.textContent = `${number.format(state.filtered.length)} visible sections`;
   els.deliveryBars.innerHTML = [
-    ["campus", "Campus"],
+    ["campus", "In-person"],
     ["internet", "Internet"],
     ["unknown", "Unknown"],
   ]
@@ -697,10 +809,11 @@ function facultyStats(rows) {
   rows.forEach((row) => {
     const names = row.faculty.length ? row.faculty : ["None assigned"];
     names.forEach((name) => {
-      const current = stats.get(name) ?? { sections: 0, filled: 0, max: 0 };
+      const current = stats.get(name) ?? { sections: 0, filled: 0, max: 0, underenrolled: 0 };
       current.sections += 1 / names.length;
       current.filled += row.filled / names.length;
       current.max += row.max / names.length;
+      if (row.filled < 10) current.underenrolled += 1 / names.length;
       stats.set(name, current);
     });
   });
@@ -711,16 +824,25 @@ function roomStats(rows) {
   return mapStats(rows.filter((row) => row.delivery === "campus"), (row) => row.room);
 }
 
-function renderRanks(targetId, stats, unit) {
+function renderRanks(targetId, stats, unit, extraLabel = "") {
   const rows = [...stats.entries()]
     .map(([name, value]) => ({ name, ...value }))
-    .sort((a, b) => b.sections - a.sections)
+    .sort((a, b) => {
+      if (extraLabel) {
+        const underenrolledDiff = (b.underenrolled ?? 0) - (a.underenrolled ?? 0);
+        if (underenrolledDiff) return underenrolledDiff;
+      }
+      return b.sections - a.sections;
+    })
     .slice(0, 12);
-  $(targetId).innerHTML = rows.length
+  const target = $(targetId);
+  target.classList.toggle("has-extra", Boolean(extraLabel));
+  target.innerHTML = rows.length
     ? rows
         .map((item) => `<div class="rank-row">
           <span class="rank-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
           <span class="rank-value">${number.format(round(item.sections))} ${unit}</span>
+          ${extraLabel ? `<span class="rank-extra">${number.format(round(item.underenrolled ?? 0))}</span>` : ""}
         </div>`)
         .join("")
     : emptyMessage("No rows match the current filters.");
@@ -775,7 +897,7 @@ function renderCards() {
 }
 
 function renderRow(row) {
-  const term = encodeURIComponent(state.selectedTerm);
+  const term = encodeURIComponent(row.termCode);
   const crn = encodeURIComponent(row.crn);
   const attrs = row.attributes.length
     ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
@@ -784,7 +906,7 @@ function renderRow(row) {
   const openText = row.available > 0 ? `${number.format(row.available)} open` : "Full";
 
   return `<tr>
-    <td><a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a><br><span>CRN ${escapeHtml(row.crn)}</span></td>
+    <td><a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a><br><span>${escapeHtml(row.termLabel)} - CRN ${escapeHtml(row.crn)}</span></td>
     <td>${escapeHtml(row.title)}<br><span>${escapeHtml(row.credits)} credits</span></td>
     <td>${number.format(row.filled)} / ${number.format(row.max)}</td>
     <td><span class="pill ${openClass}">${openText}</span>${row.wait ? `<br><span>${number.format(row.wait)} waitlisted</span>` : ""}</td>
@@ -796,7 +918,7 @@ function renderRow(row) {
 }
 
 function renderCard(row) {
-  const term = encodeURIComponent(state.selectedTerm);
+  const term = encodeURIComponent(row.termCode);
   const crn = encodeURIComponent(row.crn);
   const attrs = row.attributes.length
     ? row.attributes.map((attr) => `<span class="pill" title="${escapeHtml(attr.description)}">${escapeHtml(attr.code)}</span>`).join("")
@@ -808,7 +930,7 @@ function renderCard(row) {
       <div class="section-card-main">
         <div class="section-card-kicker">
           <a class="course-link" href="https://bim.inclass.today/history/section/${term}/${crn}" target="_blank" rel="noreferrer">${escapeHtml(row.course)}</a>
-          <span>CRN ${escapeHtml(row.crn)}</span>
+          <span>${escapeHtml(row.termLabel)} - CRN ${escapeHtml(row.crn)}</span>
         </div>
         <h3>${escapeHtml(row.title)}</h3>
         <p>${escapeHtml(row.credits)} credits</p>
@@ -861,8 +983,17 @@ function emptyMessage(message) {
 function drawHistoryChart(history) {
   const canvas = els.historyChart;
   const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(320, rect.width || canvas.clientWidth || canvas.width);
+  const height = Math.max(260, rect.height || canvas.clientHeight || canvas.height);
+  const ratio = window.devicePixelRatio || 1;
+  const pixelWidth = Math.round(width * ratio);
+  const pixelHeight = Math.round(height * ratio);
+  if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+  }
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   const padding = { top: 24, right: 24, bottom: 70, left: 62 };
   const seats = history.seats.map(Number);
   const students = history.students.map(Number);
@@ -876,7 +1007,7 @@ function drawHistoryChart(history) {
   ctx.strokeStyle = "#d8e0ea";
   ctx.lineWidth = 1;
   ctx.fillStyle = "#607086";
-  ctx.font = "14px system-ui, sans-serif";
+  ctx.font = '13px "Saira", ui-sans-serif, system-ui, sans-serif';
 
   for (let i = 0; i <= 4; i += 1) {
     const y = padding.top + plotHeight - (plotHeight * i) / 4;
@@ -908,6 +1039,11 @@ function drawHistoryChart(history) {
   });
 
   drawLegend(ctx, width);
+
+  if (!historyResizeObserver && "ResizeObserver" in window) {
+    historyResizeObserver = new ResizeObserver(() => drawHistoryChart(history));
+    historyResizeObserver.observe(canvas);
+  }
 }
 
 function drawLegend(ctx, width) {
@@ -926,8 +1062,9 @@ function drawLegend(ctx, width) {
 }
 
 function exportCsv() {
-  const headers = ["CRN", "Course", "Title", "Filled", "Maximum", "Open", "Waitlist", "Delivery", "Meeting", "Faculty", "Attributes"];
+  const headers = ["Term", "CRN", "Course", "Title", "Filled", "Maximum", "Open", "Waitlist", "Delivery", "Meeting", "Faculty", "Attributes"];
   const lines = [headers, ...sortedRows().map((row) => [
+    row.termLabel,
     row.crn,
     row.course,
     row.title,
@@ -945,7 +1082,7 @@ function exportCsv() {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `bim-${state.selectedTerm}-sections.csv`;
+  anchor.download = `bim-${[...state.selectedTerms].join("-") || "selected"}-sections.csv`;
   anchor.click();
   URL.revokeObjectURL(url);
 }

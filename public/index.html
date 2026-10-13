@@ -11,8 +11,8 @@
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.2</span>
-        <h1>Enrollment, sections, faculty, rooms, and delivery mode in one workspace.</h1>
+        <span class="app-version">Version 0.3</span>
+        <h1>DSU course enrollment interactive dashboard.</h1>
       </div>
       <div class="header-actions">
         <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
@@ -23,10 +23,20 @@
     <main>
       <section class="controls" aria-label="Dashboard controls">
         <div class="secondary-controls" aria-label="Secondary filters">
-          <label>
+          <div class="picker-filter term-filter">
             Term
-            <select id="termSelect"></select>
-          </label>
+            <button id="termToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="termPanel">
+              <span id="termSummary">Loading terms</span>
+              <span aria-hidden="true">v</span>
+            </button>
+            <div id="termPanel" class="picker-panel" hidden>
+              <div class="picker-panel-title">
+                <strong>Terms</strong>
+                <button id="clearTermsButton" type="button">Clear</button>
+              </div>
+              <div id="termOptions" class="picker-options" aria-label="Term choices"></div>
+            </div>
+          </div>
           <label>
             Search
             <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
@@ -99,8 +109,8 @@
           <strong id="occupancyMetric">-</strong>
         </article>
         <article>
-          <span>Waitlist</span>
-          <strong id="waitlistMetric">-</strong>
+          <span>Underenrolled Sections</span>
+          <strong id="underenrolledMetric">-</strong>
         </article>
       </section>
 
@@ -168,18 +178,21 @@
       <section class="split-panels">
         <article class="panel">
           <div class="panel-title">
-            <h2>Faculty Loads</h2>
-            <span>Sorted by sections</span>
-          </div>
-          <div id="facultyList" class="rank-list"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-title">
             <h2>Classrooms</h2>
             <span>Campus meetings only</span>
           </div>
           <div id="roomList" class="rank-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-title">
+            <h2>Faculty Loads</h2>
+            <span class="faculty-column-headings">
+              <span>All Sections</span>
+              <span>Underenrolled</span>
+            </span>
+          </div>
+          <div id="facultyList" class="rank-list"></div>
         </article>
       </section>
 
@@ -192,6 +205,11 @@
       </section>
     </main>
 
-    <script src="./app.js"></script>
+    <footer class="app-footer">
+      <p>Created by Tim Murray · Built with Codex and ChatGPT · Data from <a href="https://bim.inclass.today/" target="_blank" rel="noreferrer">bim.inclass.today</a> · Last updated October 13, 2026</p>
+      <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
+    </footer>
+
+    <script src="./app.js?v=0.3"></script>
   </body>
 </html>
