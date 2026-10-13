@@ -27,6 +27,11 @@ const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat("en-US");
 const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 let historyResizeObserver = null;
+let searchFilterTimer = null;
+let sectionRenderTimer = null;
+let sectionsRendered = false;
+const SEARCH_FILTER_DELAY = 320;
+const SECTION_FADE_DELAY = 220;
 
 const els = {
   termToggle: $("termToggle"),
@@ -44,6 +49,7 @@ const els = {
   facultySummary: $("facultySummary"),
   facultyPanel: $("facultyPanel"),
   facultyOptions: $("facultyOptions"),
+  facultyPickerSearch: $("facultyPickerSearch"),
   clearFacultyButton: $("clearFacultyButton"),
   deliverySelect: $("deliverySelect"),
   genEdSelect: $("genEdSelect"),
@@ -241,11 +247,23 @@ async function initialize() {
 }
 
 function getDefaultTerm(terms, history) {
+  const currentTerm = getCalendarTermDescription();
+  const current = terms.find((term) => term.description === currentTerm);
+  if (current) return current.code;
+
   const activeCodes = new Set();
   history?.name?.forEach((code, index) => {
     if (Number(history.students?.[index]) > 0) activeCodes.add(code);
   });
   return terms.find((term) => activeCodes.has(term.code))?.code ?? terms[0]?.code ?? "";
+}
+
+function getCalendarTermDescription(date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  if (month >= 7) return `${year} Fall`;
+  if (month >= 5) return `${year} Summer`;
+  return `${year} Spring`;
 }
 
 async function getTermData(term) {
@@ -331,10 +349,21 @@ function loadPreferences() {
 }
 
 function applyStoredControls() {
-  els.openOnlyButton.setAttribute("aria-pressed", String(state.openOnly));
+  syncOpenOnlyButton();
   els.tableViewButton.setAttribute("aria-pressed", String(state.sectionView === "table"));
   els.cardViewButton.setAttribute("aria-pressed", String(state.sectionView === "cards"));
   syncCardSortControl();
+}
+
+function syncOpenOnlyButton() {
+  els.openOnlyButton.setAttribute("aria-pressed", String(state.openOnly));
+  if (state.openOnly) {
+    els.openOnlyButton.setAttribute("title", "Remove filter");
+    els.openOnlyButton.setAttribute("aria-label", "Open seats only. Remove filter");
+  } else {
+    els.openOnlyButton.removeAttribute("title");
+    els.openOnlyButton.removeAttribute("aria-label");
+  }
 }
 
 function savePreferences() {
@@ -408,12 +437,19 @@ function removePreferenceStore() {
 }
 
 function bindEvents() {
-  [els.searchInput, els.deliverySelect, els.genEdSelect].forEach((el) => {
-    el.addEventListener("input", applyFilters);
+  els.searchInput.addEventListener("input", () => {
+    window.clearTimeout(searchFilterTimer);
+    searchFilterTimer = window.setTimeout(() => applyFilters({ transitionSections: true }), SEARCH_FILTER_DELAY);
+  });
+  [els.deliverySelect, els.genEdSelect].forEach((el) => {
+    el.addEventListener("input", () => applyFilters({ transitionSections: true }));
   });
   els.termToggle.addEventListener("click", () => setTermPanelOpen(els.termPanel.hidden));
   els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
   els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
+  els.facultyPickerSearch.addEventListener("input", () => {
+    renderPickerOptions("faculty", state.pickerValues.faculty);
+  });
   document.addEventListener("click", (event) => {
     if (!eventPathIncludes(event, "term-filter")) {
       setTermPanelOpen(false);
@@ -454,7 +490,7 @@ function bindEvents() {
   });
   els.openOnlyButton.addEventListener("click", () => {
     state.openOnly = !state.openOnly;
-    els.openOnlyButton.setAttribute("aria-pressed", String(state.openOnly));
+    syncOpenOnlyButton();
     applyFilters();
   });
   els.resetButton.addEventListener("click", () => {
@@ -465,6 +501,7 @@ function bindEvents() {
     state.recentTerms = [];
     state.recentSubjects = [];
     state.recentFaculty = [];
+    els.facultyPickerSearch.value = "";
     setTermPanelOpen(false);
     setSubjectPanelOpen(false);
     setFacultyPanelOpen(false);
@@ -474,7 +511,6 @@ function bindEvents() {
     state.sectionView = "cards";
     state.sortKey = "course";
     state.sortDir = "asc";
-    els.openOnlyButton.setAttribute("aria-pressed", "false");
     applyStoredControls();
     clearPreferences();
     renderPickerOptions("term", state.terms.map((term) => term.code));
@@ -511,18 +547,31 @@ function eventPathIncludes(event, className) {
 }
 
 function setTermPanelOpen(isOpen) {
-  els.termToggle.setAttribute("aria-expanded", String(isOpen));
-  els.termPanel.hidden = !isOpen;
+  setPickerPanelOpen(els.termToggle, els.termPanel, isOpen);
 }
 
 function setSubjectPanelOpen(isOpen) {
-  els.subjectToggle.setAttribute("aria-expanded", String(isOpen));
-  els.subjectPanel.hidden = !isOpen;
+  setPickerPanelOpen(els.subjectToggle, els.subjectPanel, isOpen);
 }
 
 function setFacultyPanelOpen(isOpen) {
-  els.facultyToggle.setAttribute("aria-expanded", String(isOpen));
-  els.facultyPanel.hidden = !isOpen;
+  setPickerPanelOpen(els.facultyToggle, els.facultyPanel, isOpen);
+}
+
+function setPickerPanelOpen(toggle, panel, isOpen) {
+  toggle.setAttribute("aria-expanded", String(isOpen));
+  window.clearTimeout(Number(panel.dataset.closeTimer) || 0);
+
+  if (isOpen) {
+    panel.hidden = false;
+    requestAnimationFrame(() => panel.classList.add("is-open"));
+    return;
+  }
+
+  panel.classList.remove("is-open");
+  panel.dataset.closeTimer = String(window.setTimeout(() => {
+    if (!panel.classList.contains("is-open")) panel.hidden = true;
+  }, 160));
 }
 
 function pickerConfig(kind) {
@@ -568,18 +617,45 @@ function pickerConfig(kind) {
 function renderPickerOptions(kind, values) {
   const config = pickerConfig(kind);
   state.pickerValues[kind] = values;
-  const selected = [...config.selected].filter((value) => values.includes(value));
-  const recent = [...new Set([...selected, ...config.recent.filter((value) => values.includes(value))])].slice(0, 8);
+  const displayValues = filterPickerValues(kind, values, config);
+  const selected = [...config.selected].filter((value) => displayValues.includes(value));
+  const recent = [...new Set([...selected, ...config.recent.filter((value) => displayValues.includes(value))])].slice(0, 8);
   const renderButton = (value) => {
     const selected = config.selected.has(value);
     const index = values.indexOf(value);
     return `<button class="picker-pill" type="button" data-${config.dataAttr}-index="${index}" aria-pressed="${selected}">${escapeHtml(config.label(value))}</button>`;
   };
+  const fullList = kind === "term" ? renderTermYearRows(displayValues, renderButton) : `<div class="picker-pill-list">${displayValues.map(renderButton).join("")}</div>`;
   config.options.innerHTML = values.length
     ? `${recent.length ? `<div class="picker-section"><div class="picker-section-title"><span>Recently selected</span><button class="picker-recent-clear" type="button" data-clear-recent="${kind}">Clear</button></div><div class="picker-pill-list">${recent.map(renderButton).join("")}</div></div>` : ""}
-      <div class="picker-section"><span>${recent.length ? "All" : ""}</span><div class="picker-pill-list">${values.map(renderButton).join("")}</div></div>`
+      ${displayValues.length ? `<div class="picker-section"><span>${recent.length ? "All" : ""}</span>${fullList}</div>` : emptyMessage("No faculty names match this search.")}`
     : emptyMessage(config.empty);
   updatePickerSummary(kind);
+}
+
+function filterPickerValues(kind, values, config) {
+  if (kind !== "faculty") return values;
+  const query = els.facultyPickerSearch.value.trim().toLowerCase();
+  if (!query) return values;
+  return values.filter((value) => config.label(value).toLowerCase().includes(query));
+}
+
+function renderTermYearRows(values, renderButton) {
+  const termsByAcademicYear = new Map();
+  values.forEach((value) => {
+    const term = getTermParts(value);
+    if (!term) return;
+    const group = termsByAcademicYear.get(term.academicYear) ?? {};
+    group[term.season] = value;
+    termsByAcademicYear.set(term.academicYear, group);
+  });
+
+  return `<div class="term-year-list">${[...termsByAcademicYear.entries()]
+    .sort(([yearA], [yearB]) => yearB - yearA)
+    .map(([, group]) => `<div class="term-year-row">
+      ${["Fall", "Spring", "Summer"].map((season) => group[season] ? renderButton(group[season]) : `<span></span>`).join("")}
+    </div>`)
+    .join("")}</div>`;
 }
 
 function updatePickerFilter(kind) {
@@ -640,14 +716,39 @@ function rememberPickerValue(kind, value) {
 
 function updatePickerSummary(kind) {
   const config = pickerConfig(kind);
-  const selected = [...config.selected].sort();
+  const selected = sortPickerSelections(kind, [...config.selected]);
   const display = kind === "faculty" ? selected.map(lastName) : selected.map(config.label);
-  config.summary.textContent = selected.length ? `${selected.length} selected: ${display.join(", ")}` : config.all;
+  config.summary.textContent = selected.length
+    ? kind === "term" ? display.join(", ") : `${selected.length} selected: ${display.join(", ")}`
+    : config.all;
   config.clearButton.disabled = selected.length === 0;
 }
 
+function sortPickerSelections(kind, values) {
+  if (kind !== "term") return values.sort();
+  return values.sort((a, b) => termSortRank(b) - termSortRank(a));
+}
+
+function termSortRank(code) {
+  const term = getTermParts(code);
+  if (!term) return 0;
+  const seasonRank = { Fall: 3, Spring: 2, Summer: 1 }[term.season] ?? 0;
+  return term.academicYear * 10 + seasonRank;
+}
+
 function termLabel(code) {
-  return state.terms.find((term) => term.code === code)?.description ?? code;
+  const term = getTermParts(code);
+  return term ? `${term.season} ${term.year}` : state.terms.find((item) => item.code === code)?.description ?? code;
+}
+
+function getTermParts(code) {
+  const description = state.terms.find((term) => term.code === code)?.description ?? "";
+  const match = description.match(/^(?<year>\d{4})\s+(?<season>Fall|Spring|Summer)$/i);
+  if (!match?.groups) return null;
+  const year = Number(match.groups.year);
+  const season = match.groups.season[0].toUpperCase() + match.groups.season.slice(1).toLowerCase();
+  const academicYear = season === "Fall" ? year : year - 1;
+  return { year, season, academicYear };
 }
 
 function lastName(name) {
@@ -693,7 +794,7 @@ function sortLabel(key) {
   }[key] ?? key;
 }
 
-function applyFilters() {
+function applyFilters({ transitionSections = true } = {}) {
   const query = els.searchInput.value.trim().toLowerCase();
   const subjects = state.selectedSubjects;
   const facultyNames = state.selectedFaculty;
@@ -713,17 +814,17 @@ function applyFilters() {
     return true;
   });
 
-  renderAll();
+  renderAll({ transitionSections });
   savePreferences();
 }
 
-function renderAll() {
+function renderAll({ transitionSections = true } = {}) {
   renderMetrics();
   renderDelivery();
   renderSubjectBars();
   renderRanks("facultyList", facultyStats(state.filtered), "sections", "Underenrolled");
   renderRanks("roomList", roomStats(state.filtered), "sections");
-  renderSections();
+  renderSections({ transition: transitionSections });
 }
 
 function totals(rows) {
@@ -821,7 +922,11 @@ function facultyStats(rows) {
 }
 
 function roomStats(rows) {
-  return mapStats(rows.filter((row) => row.delivery === "campus"), (row) => row.room);
+  return mapStats(rows.filter((row) => row.delivery === "campus"), (row) => displayRoomName(row.room));
+}
+
+function displayRoomName(room) {
+  return String(room ?? "").replace(/^Beacom Institute of Technology\b/, "Beacom");
 }
 
 function renderRanks(targetId, stats, unit, extraLabel = "") {
@@ -869,16 +974,31 @@ function sortValue(row, key) {
   return row[key] ?? "";
 }
 
-function renderSections() {
+function renderSections({ transition = true } = {}) {
   const isCardView = state.sectionView === "cards";
   document.querySelector(".table-panel").classList.toggle("is-card-view", isCardView);
   document.querySelector(".table-wrap").hidden = isCardView;
   els.sectionsCards.hidden = !isCardView;
+  window.clearTimeout(sectionRenderTimer);
 
   if (isCardView) {
-    renderCards();
+    if (!transition || !sectionsRendered) {
+      els.sectionsCards.classList.remove("is-fading");
+      renderCards();
+      sectionsRendered = true;
+      return;
+    }
+
+    els.sectionsCards.classList.add("is-fading");
+    sectionRenderTimer = window.setTimeout(() => {
+      renderCards();
+      els.sectionsCards.classList.remove("is-fading");
+      sectionsRendered = true;
+    }, SECTION_FADE_DELAY);
   } else {
+    els.sectionsCards.classList.remove("is-fading");
     renderTable();
+    sectionsRendered = true;
   }
 }
 

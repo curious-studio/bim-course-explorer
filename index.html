@@ -11,7 +11,7 @@
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.3</span>
+        <span class="app-version">Version 0.4</span>
         <h1>DSU course enrollment interactive dashboard.</h1>
       </div>
       <div class="header-actions">
@@ -27,11 +27,10 @@
             Term
             <button id="termToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="termPanel">
               <span id="termSummary">Loading terms</span>
-              <span aria-hidden="true">v</span>
+              <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
             <div id="termPanel" class="picker-panel" hidden>
               <div class="picker-panel-title">
-                <strong>Terms</strong>
                 <button id="clearTermsButton" type="button">Clear</button>
               </div>
               <div id="termOptions" class="picker-options" aria-label="Term choices"></div>
@@ -39,7 +38,7 @@
           </div>
           <label>
             Search
-            <input id="searchInput" type="search" placeholder="Course, CRN, faculty, room, Gen Ed">
+            <input id="searchInput" type="search">
           </label>
           <button id="resetButton" type="button">Reset</button>
         </div>
@@ -49,11 +48,10 @@
             Subject
             <button id="subjectToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
               <span id="subjectSummary">All subjects</span>
-              <span aria-hidden="true">v</span>
+              <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
             <div id="subjectPanel" class="picker-panel" hidden>
               <div class="picker-panel-title">
-                <strong>Subjects</strong>
                 <button id="clearSubjectsButton" type="button">Clear</button>
               </div>
               <div id="subjectOptions" class="picker-options" aria-label="Subject choices"></div>
@@ -63,11 +61,11 @@
             Faculty
             <button id="facultyToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="facultyPanel">
               <span id="facultySummary">All faculty</span>
-              <span aria-hidden="true">v</span>
+              <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
             <div id="facultyPanel" class="picker-panel" hidden>
               <div class="picker-panel-title">
-                <strong>Faculty</strong>
+                <input id="facultyPickerSearch" class="picker-search" type="search" aria-label="Search faculty names">
                 <button id="clearFacultyButton" type="button">Clear</button>
               </div>
               <div id="facultyOptions" class="picker-options" aria-label="Faculty choices"></div>
@@ -78,18 +76,24 @@
         <div class="tertiary-controls" aria-label="Tertiary filters">
           <label>
             Delivery
-            <select id="deliverySelect">
-              <option value="">All modes</option>
-              <option value="internet">Internet</option>
-              <option value="campus">Campus</option>
-              <option value="unknown">Unknown</option>
-            </select>
+            <span class="select-control">
+              <select id="deliverySelect">
+                <option value="">All modes</option>
+                <option value="internet">Internet</option>
+                <option value="campus">Campus</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
+            </span>
           </label>
           <label>
             Gen Ed
-            <select id="genEdSelect">
-              <option value="">All attributes</option>
-            </select>
+            <span class="select-control">
+              <select id="genEdSelect">
+                <option value="">All attributes</option>
+              </select>
+              <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
+            </span>
           </label>
           <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
         </div>
@@ -210,6 +214,6 @@
       <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
     </footer>
 
-    <script src="./app.js?v=0.3"></script>
+    <script src="./app.js?v=0.4"></script>
   </body>
 </html>
