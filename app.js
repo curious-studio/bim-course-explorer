@@ -1021,13 +1021,13 @@ function applyFilters({ transitionSections = true } = {}) {
 }
 
 function matchesMeetingDays(row, pattern) {
-  const expectedDays = {
+  const matchingDays = {
     mwf: ["monday", "wednesday", "friday"],
     tth: ["tuesday", "thursday"],
   }[pattern];
-  if (!expectedDays) return true;
+  if (!matchingDays) return true;
   const meetingDays = (row.dayKeys ?? []).filter((day) => ["monday", "tuesday", "wednesday", "thursday", "friday"].includes(day));
-  return meetingDays.length === expectedDays.length && expectedDays.every((day) => meetingDays.includes(day));
+  return meetingDays.some((day) => matchingDays.includes(day));
 }
 
 function renderAll({ transitionSections = true } = {}) {

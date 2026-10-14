@@ -201,7 +201,6 @@ main {
   text-underline-offset: 3px;
 }
 
-.source-link,
 button {
   min-height: 40px;
   border: 1px solid var(--line);
@@ -213,22 +212,24 @@ button {
 }
 
 .source-link {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 14px;
+  display: inline;
+  padding: 0;
   white-space: nowrap;
-}
-
-.app-header .source-link {
-  border-color: rgba(243, 251, 251, 0.5);
-  background: rgba(255, 255, 255, 0.12);
   color: #f3fbfb;
+  text-decoration: underline;
+  text-decoration-color: rgba(243, 251, 251, 0.55);
+  text-underline-offset: 3px;
 }
 
 .app-header .source-link:hover,
 .app-header .source-link:focus-visible {
-  border-color: #f3fbfb;
-  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  text-decoration-color: currentcolor;
+}
+
+.app-header .source-link:focus-visible {
+  outline: 2px solid #f3fbfb;
+  outline-offset: 4px;
 }
 
 .header-actions {
@@ -1401,11 +1402,6 @@ td:nth-child(8) {
   .insight-layout,
   .split-panels {
     grid-template-columns: 1fr;
-  }
-
-  .source-link {
-    width: 100%;
-    justify-content: center;
   }
 
   .header-actions {
