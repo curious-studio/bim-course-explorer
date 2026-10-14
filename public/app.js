@@ -55,6 +55,7 @@ const els = {
   facultyPickerSearch: $("facultyPickerSearch"),
   clearFacultyButton: $("clearFacultyButton"),
   deliverySelect: $("deliverySelect"),
+  meetingDaysSelect: $("meetingDaysSelect"),
   genEdSelect: $("genEdSelect"),
   openOnlyButton: $("openOnlyButton"),
   resetButton: $("resetButton"),
@@ -345,6 +346,7 @@ function loadPreferences() {
     state.openOnly = Boolean(saved.openOnly);
     els.searchInput.value = typeof saved.search === "string" ? saved.search : "";
     els.deliverySelect.value = typeof saved.delivery === "string" ? saved.delivery : "";
+    els.meetingDaysSelect.value = typeof saved.meetingDays === "string" ? saved.meetingDays : "";
     els.genEdSelect.value = typeof saved.genEd === "string" ? saved.genEd : "";
     state.sortKey = typeof saved.sortKey === "string" ? saved.sortKey : state.sortKey;
     state.sortDir = saved.sortDir === "desc" ? "desc" : "asc";
@@ -367,6 +369,7 @@ function loadSharedView() {
   state.recentFaculty = [];
   els.searchInput.value = params.get("search") ?? "";
   els.deliverySelect.value = params.get("delivery") ?? "";
+  els.meetingDaysSelect.value = params.get("meetingDays") ?? "";
   els.genEdSelect.value = params.get("genEd") ?? "";
   state.openOnly = params.get("openOnly") === "1";
   state.sectionView = params.get("view") === "table" ? "table" : "cards";
@@ -386,6 +389,7 @@ function buildSharedViewUrl() {
   [...state.selectedFaculty].sort().forEach((faculty) => url.searchParams.append("faculty", faculty));
   if (els.searchInput.value) url.searchParams.set("search", els.searchInput.value);
   if (els.deliverySelect.value) url.searchParams.set("delivery", els.deliverySelect.value);
+  if (els.meetingDaysSelect.value) url.searchParams.set("meetingDays", els.meetingDaysSelect.value);
   if (els.genEdSelect.value) url.searchParams.set("genEd", els.genEdSelect.value);
   if (state.openOnly) url.searchParams.set("openOnly", "1");
   url.searchParams.set("view", state.sectionView);
@@ -462,6 +466,7 @@ function savePreferences() {
     recentSubjects: state.recentSubjects,
     recentFaculty: state.recentFaculty,
     delivery: els.deliverySelect.value,
+    meetingDays: els.meetingDaysSelect.value,
     genEd: els.genEdSelect.value,
     openOnly: state.openOnly,
     sectionView: state.sectionView,
@@ -526,7 +531,7 @@ function bindEvents() {
     window.clearTimeout(searchFilterTimer);
     searchFilterTimer = window.setTimeout(() => applyFilters({ transitionSections: true }), SEARCH_FILTER_DELAY);
   });
-  [els.deliverySelect, els.genEdSelect].forEach((el) => {
+  [els.deliverySelect, els.meetingDaysSelect, els.genEdSelect].forEach((el) => {
     el.addEventListener("input", () => applyFilters({ transitionSections: true }));
   });
   els.termToggle.addEventListener("click", () => setTermPanelOpen(els.termPanel.hidden));
@@ -602,6 +607,7 @@ function bindEvents() {
     setSubjectPanelOpen(false);
     setFacultyPanelOpen(false);
     els.deliverySelect.value = "";
+    els.meetingDaysSelect.value = "";
     els.genEdSelect.value = "";
     state.openOnly = false;
     state.sectionView = "cards";
@@ -904,6 +910,7 @@ function applyFilters({ transitionSections = true } = {}) {
   const subjects = state.selectedSubjects;
   const facultyNames = state.selectedFaculty;
   const delivery = els.deliverySelect.value;
+  const meetingDays = els.meetingDaysSelect.value;
   const genEd = els.genEdSelect.value;
 
   state.filtered = state.rows.filter((row) => {
@@ -914,6 +921,7 @@ function applyFilters({ transitionSections = true } = {}) {
       if (!names.some((name) => facultyNames.has(name))) return false;
     }
     if (delivery && row.delivery !== delivery) return false;
+    if (meetingDays && !matchesMeetingDays(row, meetingDays)) return false;
     if (genEd && !row.attributes.some((attr) => attr.code === genEd)) return false;
     if (state.openOnly && row.available <= 0) return false;
     return true;
@@ -921,6 +929,16 @@ function applyFilters({ transitionSections = true } = {}) {
 
   renderAll({ transitionSections });
   savePreferences();
+}
+
+function matchesMeetingDays(row, pattern) {
+  const expectedDays = {
+    mwf: ["monday", "wednesday", "friday"],
+    tth: ["tuesday", "thursday"],
+  }[pattern];
+  if (!expectedDays) return true;
+  const meetingDays = (row.dayKeys ?? []).filter((day) => ["monday", "tuesday", "wednesday", "thursday", "friday"].includes(day));
+  return meetingDays.length === expectedDays.length && expectedDays.every((day) => meetingDays.includes(day));
 }
 
 function renderAll({ transitionSections = true } = {}) {

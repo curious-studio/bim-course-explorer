@@ -11,7 +11,7 @@
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.6</span>
+        <span class="app-version">Version 0.7</span>
         <h1>Enrollment Dashboard</h1>
         <p class="header-subtitle">An interactive tool to explore enrollment data for courses at Dakota State University.</p>
       </div>
@@ -83,6 +83,17 @@
                 <option value="internet">Internet</option>
                 <option value="campus">Campus</option>
                 <option value="unknown">Unknown</option>
+              </select>
+              <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
+            </span>
+          </label>
+          <label>
+            Meeting days
+            <span class="select-control">
+              <select id="meetingDaysSelect">
+                <option value="">All schedules</option>
+                <option value="mwf">Monday / Wednesday / Friday</option>
+                <option value="tth">Tuesday / Thursday</option>
               </select>
               <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </span>
@@ -217,6 +228,6 @@
       <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
     </footer>
 
-    <script src="./app.js?v=0.6"></script>
+    <script src="./app.js?v=0.7"></script>
   </body>
 </html>
