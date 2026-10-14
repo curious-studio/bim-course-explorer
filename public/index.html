@@ -11,7 +11,7 @@
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.7</span>
+        <span class="app-version">Version 0.8</span>
         <h1>Enrollment Dashboard</h1>
         <p class="header-subtitle">An interactive tool to explore enrollment data for courses at Dakota State University.</p>
       </div>
@@ -72,6 +72,19 @@
               <div id="facultyOptions" class="picker-options" aria-label="Faculty choices"></div>
             </div>
           </div>
+          <div class="picker-filter college-filter">
+            College
+            <button id="collegeToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="collegePanel">
+              <span id="collegeSummary">All colleges</span>
+              <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
+            </button>
+            <div id="collegePanel" class="picker-panel" hidden>
+              <div class="picker-panel-title">
+                <button id="clearCollegesButton" type="button">Clear</button>
+              </div>
+              <div id="collegeOptions" class="picker-options" aria-label="College choices"></div>
+            </div>
+          </div>
         </div>
 
         <div class="tertiary-controls" aria-label="Tertiary filters">
@@ -92,8 +105,8 @@
             <span class="select-control">
               <select id="meetingDaysSelect">
                 <option value="">All schedules</option>
-                <option value="mwf">Monday / Wednesday / Friday</option>
-                <option value="tth">Tuesday / Thursday</option>
+                <option value="mwf">Mon / Wed / Fri</option>
+                <option value="tth">Tues / Thurs</option>
               </select>
               <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </span>
@@ -228,6 +241,6 @@
       <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
     </footer>
 
-    <script src="./app.js?v=0.7"></script>
+    <script src="./app.js?v=0.8"></script>
   </body>
 </html>

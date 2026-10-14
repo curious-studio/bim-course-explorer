@@ -1,6 +1,26 @@
 const API_BASE = window.BIM_API_BASE ?? (location.hostname.endsWith("github.io") ? "./api" : "/api");
 const PREFERENCES_KEY = "bim-course-explorer.preferences.v1";
 const PREFERENCES_COOKIE = "bimCourseExplorerPrefs";
+const COLLEGE_OPTIONS = [
+  ["arts-sciences", "Arts & Sciences"],
+  ["business-information-systems", "Business & Information Systems"],
+  ["beacom-computer-cyber-sciences", "Beacom, Computer & Cyber Sciences"],
+  ["education-human-performance", "Education & Human Performance"],
+];
+const COLLEGE_SUBJECTS = {
+  "arts-sciences": new Set([
+    "ANTH", "ART", "ARTD", "ARTH", "ASC", "BIOL", "CHEM", "CHIN", "CIV", "CLI",
+    "CMST", "DAD", "ENGL", "GEOG", "GS", "HIST", "HON", "MATH", "MCOM", "MUAP",
+    "MUEN", "MUS", "PHIL", "PHYS", "POLS", "RUSS", "SOC", "SPAN", "THEA", "GAME",
+  ]),
+  "business-information-systems": new Set([
+    "ACCT", "BADM", "CIS", "ECON", "HIM", "HIMS", "INFS",
+  ]),
+  "beacom-computer-cyber-sciences": new Set(["CSC", "INFA", "GAME"]),
+  "education-human-performance": new Set([
+    "CET", "ED", "EDER", "EDFN", "ELED", "EPSY", "EXS", "HLTH", "INED", "LIBM", "PE", "PSYC", "SEED", "SPED",
+  ]),
+};
 
 const state = {
   terms: [],
@@ -12,10 +32,12 @@ const state = {
   filtered: [],
   selectedSubjects: new Set(),
   selectedFaculty: new Set(),
+  selectedColleges: new Set(),
   recentTerms: [],
   recentSubjects: [],
   recentFaculty: [],
-  pickerValues: { term: [], subject: [], faculty: [] },
+  recentColleges: [],
+  pickerValues: { term: [], subject: [], faculty: [], college: [] },
   sortKey: "course",
   sortDir: "asc",
   sectionView: "cards",
@@ -54,6 +76,11 @@ const els = {
   facultyOptions: $("facultyOptions"),
   facultyPickerSearch: $("facultyPickerSearch"),
   clearFacultyButton: $("clearFacultyButton"),
+  collegeToggle: $("collegeToggle"),
+  collegeSummary: $("collegeSummary"),
+  collegePanel: $("collegePanel"),
+  collegeOptions: $("collegeOptions"),
+  clearCollegesButton: $("clearCollegesButton"),
   deliverySelect: $("deliverySelect"),
   meetingDaysSelect: $("meetingDaysSelect"),
   genEdSelect: $("genEdSelect"),
@@ -245,6 +272,7 @@ async function initialize() {
     state.recentTerms = state.recentTerms.filter((code) => terms.some((term) => term.code === code));
     if (!state.selectedTerms.size && !state.hasSharedView) state.selectedTerms.add(getDefaultTerm(terms, history));
     renderPickerOptions("term", terms.map((term) => term.code));
+    renderPickerOptions("college", COLLEGE_OPTIONS.map(([value]) => value));
     applyStoredControls();
     await loadSelectedTerms();
     if (history) drawHistoryChart(history);
@@ -339,9 +367,13 @@ function loadPreferences() {
     state.selectedTerms = new Set(savedTerms);
     state.selectedSubjects = new Set(Array.isArray(saved.subjects) ? saved.subjects.filter((subject) => typeof subject === "string") : []);
     state.selectedFaculty = new Set(Array.isArray(saved.faculty) ? saved.faculty.filter((faculty) => typeof faculty === "string") : []);
+    state.selectedColleges = new Set(Array.isArray(saved.colleges)
+      ? saved.colleges.filter((college) => typeof college === "string")
+      : typeof saved.college === "string" && saved.college ? [saved.college] : []);
     state.recentTerms = Array.isArray(saved.recentTerms) ? saved.recentTerms.filter((term) => typeof term === "string") : [];
     state.recentSubjects = Array.isArray(saved.recentSubjects) ? saved.recentSubjects.filter((subject) => typeof subject === "string") : [];
     state.recentFaculty = Array.isArray(saved.recentFaculty) ? saved.recentFaculty.filter((faculty) => typeof faculty === "string") : [];
+    state.recentColleges = Array.isArray(saved.recentColleges) ? saved.recentColleges.filter((college) => typeof college === "string") : [];
     state.sectionView = saved.sectionView === "table" ? "table" : "cards";
     state.openOnly = Boolean(saved.openOnly);
     els.searchInput.value = typeof saved.search === "string" ? saved.search : "";
@@ -364,9 +396,11 @@ function loadSharedView() {
   state.selectedTerms = new Set(params.getAll("term"));
   state.selectedSubjects = new Set(params.getAll("subject"));
   state.selectedFaculty = new Set(params.getAll("faculty"));
+  state.selectedColleges = new Set(params.getAll("college"));
   state.recentTerms = [];
   state.recentSubjects = [];
   state.recentFaculty = [];
+  state.recentColleges = [];
   els.searchInput.value = params.get("search") ?? "";
   els.deliverySelect.value = params.get("delivery") ?? "";
   els.meetingDaysSelect.value = params.get("meetingDays") ?? "";
@@ -388,6 +422,7 @@ function buildSharedViewUrl() {
   [...state.selectedSubjects].sort().forEach((subject) => url.searchParams.append("subject", subject));
   [...state.selectedFaculty].sort().forEach((faculty) => url.searchParams.append("faculty", faculty));
   if (els.searchInput.value) url.searchParams.set("search", els.searchInput.value);
+  [...state.selectedColleges].sort().forEach((college) => url.searchParams.append("college", college));
   if (els.deliverySelect.value) url.searchParams.set("delivery", els.deliverySelect.value);
   if (els.meetingDaysSelect.value) url.searchParams.set("meetingDays", els.meetingDaysSelect.value);
   if (els.genEdSelect.value) url.searchParams.set("genEd", els.genEdSelect.value);
@@ -465,6 +500,8 @@ function savePreferences() {
     recentTerms: state.recentTerms,
     recentSubjects: state.recentSubjects,
     recentFaculty: state.recentFaculty,
+    colleges: [...state.selectedColleges],
+    recentColleges: state.recentColleges,
     delivery: els.deliverySelect.value,
     meetingDays: els.meetingDaysSelect.value,
     genEd: els.genEdSelect.value,
@@ -537,18 +574,20 @@ function bindEvents() {
   els.termToggle.addEventListener("click", () => setTermPanelOpen(els.termPanel.hidden));
   els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
   els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
+  els.collegeToggle.addEventListener("click", () => setCollegePanelOpen(els.collegePanel.hidden));
   els.facultyPickerSearch.addEventListener("input", () => {
     renderPickerOptions("faculty", state.pickerValues.faculty);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    const activeToggle = [els.termToggle, els.subjectToggle, els.facultyToggle]
+    const activeToggle = [els.termToggle, els.subjectToggle, els.facultyToggle, els.collegeToggle]
       .find((toggle) => toggle.getAttribute("aria-expanded") === "true");
     if (!activeToggle) return;
     event.preventDefault();
     setTermPanelOpen(false);
     setSubjectPanelOpen(false);
     setFacultyPanelOpen(false);
+    setCollegePanelOpen(false);
     activeToggle.focus({ preventScroll: true });
   });
   document.addEventListener("click", (event) => {
@@ -560,6 +599,9 @@ function bindEvents() {
     }
     if (!eventPathIncludes(event, "faculty-filter")) {
       setFacultyPanelOpen(false);
+    }
+    if (!eventPathIncludes(event, "college-filter")) {
+      setCollegePanelOpen(false);
     }
   });
   els.clearTermsButton.addEventListener("click", () => {
@@ -577,6 +619,11 @@ function bindEvents() {
     state.recentFaculty = [];
     updatePickerFilter("faculty");
   });
+  els.clearCollegesButton.addEventListener("click", () => {
+    state.selectedColleges.clear();
+    state.recentColleges = [];
+    updatePickerFilter("college");
+  });
   els.termOptions.addEventListener("click", (event) => {
     event.stopPropagation();
     handlePickerClick(event, "term");
@@ -589,6 +636,10 @@ function bindEvents() {
     event.stopPropagation();
     handlePickerClick(event, "faculty");
   });
+  els.collegeOptions.addEventListener("click", (event) => {
+    event.stopPropagation();
+    handlePickerClick(event, "college");
+  });
   els.openOnlyButton.addEventListener("click", () => {
     state.openOnly = !state.openOnly;
     syncOpenOnlyButton();
@@ -599,13 +650,16 @@ function bindEvents() {
     state.selectedTerms = new Set([getDefaultTerm(state.terms, state.history)].filter(Boolean));
     state.selectedSubjects.clear();
     state.selectedFaculty.clear();
+    state.selectedColleges.clear();
     state.recentTerms = [];
     state.recentSubjects = [];
     state.recentFaculty = [];
+    state.recentColleges = [];
     els.facultyPickerSearch.value = "";
     setTermPanelOpen(false);
     setSubjectPanelOpen(false);
     setFacultyPanelOpen(false);
+    setCollegePanelOpen(false);
     els.deliverySelect.value = "";
     els.meetingDaysSelect.value = "";
     els.genEdSelect.value = "";
@@ -616,6 +670,7 @@ function bindEvents() {
     applyStoredControls();
     clearPreferences();
     renderPickerOptions("term", state.terms.map((term) => term.code));
+    renderPickerOptions("college", COLLEGE_OPTIONS.map(([value]) => value));
     loadSelectedTerms();
   });
   els.shareViewButton.addEventListener("click", shareCurrentView);
@@ -663,6 +718,10 @@ function setFacultyPanelOpen(isOpen) {
   if (isOpen) requestAnimationFrame(() => els.facultyPickerSearch.focus({ preventScroll: true }));
 }
 
+function setCollegePanelOpen(isOpen) {
+  setPickerPanelOpen(els.collegeToggle, els.collegePanel, isOpen);
+}
+
 function setPickerPanelOpen(toggle, panel, isOpen) {
   toggle.setAttribute("aria-expanded", String(isOpen));
   window.clearTimeout(Number(panel.dataset.closeTimer) || 0);
@@ -694,29 +753,45 @@ function pickerConfig(kind) {
     };
   }
 
-  return kind === "faculty"
-    ? {
-        selected: state.selectedFaculty,
-        recent: state.recentFaculty,
-        options: els.facultyOptions,
-        summary: els.facultySummary,
-        clearButton: els.clearFacultyButton,
-        empty: "No faculty available.",
-        all: "All faculty",
-        dataAttr: "faculty",
-        label: (value) => value,
-      }
-    : {
-        selected: state.selectedSubjects,
-        recent: state.recentSubjects,
-        options: els.subjectOptions,
-        summary: els.subjectSummary,
-        clearButton: els.clearSubjectsButton,
-        empty: "No subjects available.",
-        all: "All subjects",
-        dataAttr: "subject",
-        label: (value) => value,
-      };
+  if (kind === "faculty") {
+    return {
+      selected: state.selectedFaculty,
+      recent: state.recentFaculty,
+      options: els.facultyOptions,
+      summary: els.facultySummary,
+      clearButton: els.clearFacultyButton,
+      empty: "No faculty available.",
+      all: "All faculty",
+      dataAttr: "faculty",
+      label: (value) => value,
+    };
+  }
+
+  if (kind === "college") {
+    return {
+      selected: state.selectedColleges,
+      recent: state.recentColleges,
+      options: els.collegeOptions,
+      summary: els.collegeSummary,
+      clearButton: els.clearCollegesButton,
+      empty: "No colleges available.",
+      all: "All colleges",
+      dataAttr: "college",
+      label: collegeLabel,
+    };
+  }
+
+  return {
+    selected: state.selectedSubjects,
+    recent: state.recentSubjects,
+    options: els.subjectOptions,
+    summary: els.subjectSummary,
+    clearButton: els.clearSubjectsButton,
+    empty: "No subjects available.",
+    all: "All subjects",
+    dataAttr: "subject",
+    label: (value) => value,
+  };
 }
 
 function renderPickerOptions(kind, values) {
@@ -772,6 +847,12 @@ function updatePickerFilter(kind) {
     return;
   }
 
+  if (kind === "college") {
+    renderPickerOptions("college", COLLEGE_OPTIONS.map(([value]) => value));
+    applyFilters();
+    return;
+  }
+
   const values = kind === "faculty"
     ? [...new Set(state.rows.flatMap((row) => row.faculty.length ? row.faculty : ["None assigned"]))].sort()
     : [...new Set(state.rows.map((row) => row.subject))].sort();
@@ -809,6 +890,7 @@ function clearRecentPickerValues(kind) {
   const key = {
     term: "recentTerms",
     faculty: "recentFaculty",
+    college: "recentColleges",
     subject: "recentSubjects",
   }[kind];
   state[key] = [];
@@ -820,6 +902,7 @@ function rememberPickerValue(kind, value) {
   const key = {
     term: "recentTerms",
     faculty: "recentFaculty",
+    college: "recentColleges",
     subject: "recentSubjects",
   }[kind];
   state[key] = [value, ...state[key].filter((item) => item !== value)].slice(0, 8);
@@ -867,6 +950,10 @@ function lastName(name) {
   return parts[parts.length - 1] || name;
 }
 
+function collegeLabel(value) {
+  return COLLEGE_OPTIONS.find(([key]) => key === value)?.[1] ?? value;
+}
+
 function setSectionView(view) {
   state.sectionView = view;
   els.tableViewButton.setAttribute("aria-pressed", String(view === "table"));
@@ -909,6 +996,7 @@ function applyFilters({ transitionSections = true } = {}) {
   const query = els.searchInput.value.trim().toLowerCase();
   const subjects = state.selectedSubjects;
   const facultyNames = state.selectedFaculty;
+  const colleges = state.selectedColleges;
   const delivery = els.deliverySelect.value;
   const meetingDays = els.meetingDaysSelect.value;
   const genEd = els.genEdSelect.value;
@@ -916,6 +1004,7 @@ function applyFilters({ transitionSections = true } = {}) {
   state.filtered = state.rows.filter((row) => {
     if (query && !row.search.includes(query)) return false;
     if (subjects.size && !subjects.has(row.subject)) return false;
+    if (colleges.size && ![...colleges].some((college) => COLLEGE_SUBJECTS[college]?.has(row.subject))) return false;
     if (facultyNames.size) {
       const names = row.faculty.length ? row.faculty : ["None assigned"];
       if (!names.some((name) => facultyNames.has(name))) return false;
