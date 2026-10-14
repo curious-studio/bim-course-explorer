@@ -52,6 +52,11 @@ const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 let historyResizeObserver = null;
 let searchFilterTimer = null;
 let sectionRenderTimer = null;
+
+function trackEvent(name, parameters = {}) {
+  if (typeof window.gtag !== "function") return;
+  window.gtag("event", name, parameters);
+}
 let shareButtonTimer = null;
 let shareRestoreTimer = null;
 let sectionsRendered = false;
@@ -433,8 +438,13 @@ function buildSharedViewUrl() {
   return url.toString();
 }
 
-async function shareCurrentView() {
+async function shareCurrentView(placement) {
   const copied = await copyText(buildSharedViewUrl());
+  trackEvent("dashboard_shared", {
+    placement,
+    copy_succeeded: copied,
+    visible_sections: state.filtered.length,
+  });
   window.clearTimeout(shareButtonTimer);
   window.clearTimeout(shareRestoreTimer);
   setShareButtonText(copied ? "Copied" : "Copy failed", copied);
@@ -566,15 +576,44 @@ function removePreferenceStore() {
 function bindEvents() {
   els.searchInput.addEventListener("input", () => {
     window.clearTimeout(searchFilterTimer);
-    searchFilterTimer = window.setTimeout(() => applyFilters({ transitionSections: true }), SEARCH_FILTER_DELAY);
+    searchFilterTimer = window.setTimeout(() => {
+      applyFilters({ transitionSections: true });
+      trackEvent("dashboard_search_applied", {
+        has_search: Boolean(els.searchInput.value.trim()),
+        visible_sections: state.filtered.length,
+      });
+    }, SEARCH_FILTER_DELAY);
   });
-  [els.deliverySelect, els.meetingDaysSelect, els.genEdSelect].forEach((el) => {
-    el.addEventListener("input", () => applyFilters({ transitionSections: true }));
+  [["delivery", els.deliverySelect], ["meeting_days", els.meetingDaysSelect], ["general_education", els.genEdSelect]].forEach(([filterType, el]) => {
+    el.addEventListener("input", () => {
+      applyFilters({ transitionSections: true });
+      trackEvent("dashboard_filter_applied", {
+        filter_type: filterType,
+        is_active: Boolean(el.value),
+        visible_sections: state.filtered.length,
+      });
+    });
   });
-  els.termToggle.addEventListener("click", () => setTermPanelOpen(els.termPanel.hidden));
-  els.subjectToggle.addEventListener("click", () => setSubjectPanelOpen(els.subjectPanel.hidden));
-  els.facultyToggle.addEventListener("click", () => setFacultyPanelOpen(els.facultyPanel.hidden));
-  els.collegeToggle.addEventListener("click", () => setCollegePanelOpen(els.collegePanel.hidden));
+  els.termToggle.addEventListener("click", () => {
+    const isOpen = els.termPanel.hidden;
+    setTermPanelOpen(isOpen);
+    if (isOpen) trackEvent("dashboard_picker_opened", { picker_type: "term" });
+  });
+  els.subjectToggle.addEventListener("click", () => {
+    const isOpen = els.subjectPanel.hidden;
+    setSubjectPanelOpen(isOpen);
+    if (isOpen) trackEvent("dashboard_picker_opened", { picker_type: "subject" });
+  });
+  els.facultyToggle.addEventListener("click", () => {
+    const isOpen = els.facultyPanel.hidden;
+    setFacultyPanelOpen(isOpen);
+    if (isOpen) trackEvent("dashboard_picker_opened", { picker_type: "faculty" });
+  });
+  els.collegeToggle.addEventListener("click", () => {
+    const isOpen = els.collegePanel.hidden;
+    setCollegePanelOpen(isOpen);
+    if (isOpen) trackEvent("dashboard_picker_opened", { picker_type: "college" });
+  });
   els.facultyPickerSearch.addEventListener("input", () => {
     renderPickerOptions("faculty", state.pickerValues.faculty);
   });
@@ -608,21 +647,25 @@ function bindEvents() {
     state.selectedTerms.clear();
     state.recentTerms = [];
     updatePickerFilter("term");
+    trackEvent("dashboard_filter_cleared", { filter_type: "term" });
   });
   els.clearSubjectsButton.addEventListener("click", () => {
     state.selectedSubjects.clear();
     state.recentSubjects = [];
     updatePickerFilter("subject");
+    trackEvent("dashboard_filter_cleared", { filter_type: "subject" });
   });
   els.clearFacultyButton.addEventListener("click", () => {
     state.selectedFaculty.clear();
     state.recentFaculty = [];
     updatePickerFilter("faculty");
+    trackEvent("dashboard_filter_cleared", { filter_type: "faculty" });
   });
   els.clearCollegesButton.addEventListener("click", () => {
     state.selectedColleges.clear();
     state.recentColleges = [];
     updatePickerFilter("college");
+    trackEvent("dashboard_filter_cleared", { filter_type: "college" });
   });
   els.termOptions.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -644,6 +687,11 @@ function bindEvents() {
     state.openOnly = !state.openOnly;
     syncOpenOnlyButton();
     applyFilters();
+    trackEvent("dashboard_filter_applied", {
+      filter_type: "open_seats",
+      is_active: state.openOnly,
+      visible_sections: state.filtered.length,
+    });
   });
   els.resetButton.addEventListener("click", () => {
     els.searchInput.value = "";
@@ -672,10 +720,14 @@ function bindEvents() {
     renderPickerOptions("term", state.terms.map((term) => term.code));
     renderPickerOptions("college", COLLEGE_OPTIONS.map(([value]) => value));
     loadSelectedTerms();
+    trackEvent("dashboard_reset");
   });
-  els.shareViewButton.addEventListener("click", shareCurrentView);
-  els.shareViewButtonBottom.addEventListener("click", shareCurrentView);
-  els.exportButton.addEventListener("click", exportCsv);
+  els.shareViewButton.addEventListener("click", () => shareCurrentView("filters"));
+  els.shareViewButtonBottom.addEventListener("click", () => shareCurrentView("sections"));
+  els.exportButton.addEventListener("click", () => {
+    exportCsv();
+    trackEvent("dashboard_exported", { format: "csv", visible_sections: state.filtered.length });
+  });
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
   els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
   document.querySelectorAll("[data-card-sort]").forEach((control) => {
@@ -687,6 +739,7 @@ function bindEvents() {
       syncCardSortButtons();
       savePreferences();
       renderSections();
+      trackEvent("dashboard_sort_changed", { sort_key: nextKey, sort_direction: state.sortDir, view: "cards" });
     });
   });
   document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -697,6 +750,14 @@ function bindEvents() {
       syncCardSortControl();
       savePreferences();
       renderSections();
+      trackEvent("dashboard_sort_changed", { sort_key: nextKey, sort_direction: state.sortDir, view: "table" });
+    });
+  });
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".source-link, .course-link");
+    if (!link) return;
+    trackEvent(link.classList.contains("source-link") ? "dashboard_source_data_opened" : "dashboard_section_detail_opened", {
+      view: state.sectionView,
     });
   });
 }
@@ -871,7 +932,8 @@ function handlePickerClick(event, kind) {
   if (!button) return;
   const value = state.pickerValues[kind][Number(button.dataset[`${config.dataAttr}Index`])];
   if (!value) return;
-  if (config.selected.has(value)) {
+  const wasSelected = config.selected.has(value);
+  if (wasSelected) {
     config.selected.delete(value);
   } else {
     config.selected.add(value);
@@ -881,6 +943,11 @@ function handlePickerClick(event, kind) {
     els.facultyPickerSearch.value = "";
   }
   updatePickerFilter(kind);
+  trackEvent("dashboard_picker_selection_changed", {
+    picker_type: kind,
+    selection_action: wasSelected ? "removed" : "added",
+    selection_count: config.selected.size,
+  });
   if (kind === "faculty") {
     requestAnimationFrame(() => els.facultyPickerSearch.focus({ preventScroll: true }));
   }
@@ -955,12 +1022,14 @@ function collegeLabel(value) {
 }
 
 function setSectionView(view) {
+  const changed = state.sectionView !== view;
   state.sectionView = view;
   els.tableViewButton.setAttribute("aria-pressed", String(view === "table"));
   els.cardViewButton.setAttribute("aria-pressed", String(view === "cards"));
   syncCardSortControl();
   savePreferences();
   renderSections();
+  if (changed) trackEvent("dashboard_view_changed", { view });
 }
 
 function syncCardSortControl() {
