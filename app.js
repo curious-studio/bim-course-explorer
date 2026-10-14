@@ -21,6 +21,7 @@ const state = {
   sectionView: "cards",
   openOnly: false,
   preferencesLoaded: false,
+  hasSharedView: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -29,6 +30,8 @@ const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 let historyResizeObserver = null;
 let searchFilterTimer = null;
 let sectionRenderTimer = null;
+let shareButtonTimer = null;
+let shareRestoreTimer = null;
 let sectionsRendered = false;
 const SEARCH_FILTER_DELAY = 320;
 const SECTION_FADE_DELAY = 220;
@@ -55,6 +58,8 @@ const els = {
   genEdSelect: $("genEdSelect"),
   openOnlyButton: $("openOnlyButton"),
   resetButton: $("resetButton"),
+  shareViewButton: $("shareViewButton"),
+  shareViewButtonBottom: $("shareViewButtonBottom"),
   status: $("status"),
   sectionsMetric: $("sectionsMetric"),
   filledMetric: $("filledMetric"),
@@ -225,6 +230,7 @@ function normalizeSection(section, termCode = "") {
 async function initialize() {
   bindEvents();
   loadPreferences();
+  loadSharedView();
 
   try {
     const [terms, history] = await Promise.all([
@@ -236,7 +242,7 @@ async function initialize() {
     state.history = history;
     state.selectedTerms = new Set([...state.selectedTerms].filter((code) => terms.some((term) => term.code === code)));
     state.recentTerms = state.recentTerms.filter((code) => terms.some((term) => term.code === code));
-    if (!state.selectedTerms.size) state.selectedTerms.add(getDefaultTerm(terms, history));
+    if (!state.selectedTerms.size && !state.hasSharedView) state.selectedTerms.add(getDefaultTerm(terms, history));
     renderPickerOptions("term", terms.map((term) => term.code));
     applyStoredControls();
     await loadSelectedTerms();
@@ -348,6 +354,85 @@ function loadPreferences() {
   }
 }
 
+function loadSharedView() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("share") !== "1") return;
+
+  state.hasSharedView = true;
+  state.selectedTerms = new Set(params.getAll("term"));
+  state.selectedSubjects = new Set(params.getAll("subject"));
+  state.selectedFaculty = new Set(params.getAll("faculty"));
+  state.recentTerms = [];
+  state.recentSubjects = [];
+  state.recentFaculty = [];
+  els.searchInput.value = params.get("search") ?? "";
+  els.deliverySelect.value = params.get("delivery") ?? "";
+  els.genEdSelect.value = params.get("genEd") ?? "";
+  state.openOnly = params.get("openOnly") === "1";
+  state.sectionView = params.get("view") === "table" ? "table" : "cards";
+  state.sortKey = ["course", "faculty", "filled", "delivery"].includes(params.get("sort"))
+    ? params.get("sort")
+    : "course";
+  state.sortDir = params.get("sortDir") === "desc" ? "desc" : "asc";
+}
+
+function buildSharedViewUrl() {
+  const url = new URL(window.location.href);
+  url.search = "";
+  url.hash = "";
+  url.searchParams.set("share", "1");
+  [...state.selectedTerms].sort().forEach((term) => url.searchParams.append("term", term));
+  [...state.selectedSubjects].sort().forEach((subject) => url.searchParams.append("subject", subject));
+  [...state.selectedFaculty].sort().forEach((faculty) => url.searchParams.append("faculty", faculty));
+  if (els.searchInput.value) url.searchParams.set("search", els.searchInput.value);
+  if (els.deliverySelect.value) url.searchParams.set("delivery", els.deliverySelect.value);
+  if (els.genEdSelect.value) url.searchParams.set("genEd", els.genEdSelect.value);
+  if (state.openOnly) url.searchParams.set("openOnly", "1");
+  url.searchParams.set("view", state.sectionView);
+  url.searchParams.set("sort", state.sortKey);
+  url.searchParams.set("sortDir", state.sortDir);
+  return url.toString();
+}
+
+async function shareCurrentView() {
+  const copied = await copyText(buildSharedViewUrl());
+  window.clearTimeout(shareButtonTimer);
+  window.clearTimeout(shareRestoreTimer);
+  setShareButtonText(copied ? "Copied" : "Copy failed", copied);
+  shareButtonTimer = window.setTimeout(() => {
+    setShareButtonText("Share Current View", false, true);
+    shareRestoreTimer = window.setTimeout(() => {
+      setShareButtonText("Share Current View", false);
+    }, 700);
+  }, 3600);
+}
+
+function setShareButtonText(text, isCopied, isRestoring = false) {
+  [els.shareViewButton, els.shareViewButtonBottom].forEach((button) => {
+    button.textContent = text;
+    button.classList.toggle("is-copied", isCopied);
+    button.classList.toggle("is-restoring", isRestoring);
+  });
+}
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    const fallback = document.createElement("textarea");
+    fallback.value = value;
+    fallback.setAttribute("readonly", "");
+    fallback.style.position = "fixed";
+    fallback.style.opacity = "0";
+    document.body.append(fallback);
+    fallback.select();
+    const copied = document.execCommand("copy");
+    fallback.remove();
+    return copied;
+  }
+}
+
 function applyStoredControls() {
   syncOpenOnlyButton();
   els.tableViewButton.setAttribute("aria-pressed", String(state.sectionView === "table"));
@@ -450,6 +535,17 @@ function bindEvents() {
   els.facultyPickerSearch.addEventListener("input", () => {
     renderPickerOptions("faculty", state.pickerValues.faculty);
   });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const activeToggle = [els.termToggle, els.subjectToggle, els.facultyToggle]
+      .find((toggle) => toggle.getAttribute("aria-expanded") === "true");
+    if (!activeToggle) return;
+    event.preventDefault();
+    setTermPanelOpen(false);
+    setSubjectPanelOpen(false);
+    setFacultyPanelOpen(false);
+    activeToggle.focus({ preventScroll: true });
+  });
   document.addEventListener("click", (event) => {
     if (!eventPathIncludes(event, "term-filter")) {
       setTermPanelOpen(false);
@@ -516,6 +612,8 @@ function bindEvents() {
     renderPickerOptions("term", state.terms.map((term) => term.code));
     loadSelectedTerms();
   });
+  els.shareViewButton.addEventListener("click", shareCurrentView);
+  els.shareViewButtonBottom.addEventListener("click", shareCurrentView);
   els.exportButton.addEventListener("click", exportCsv);
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
   els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
@@ -556,6 +654,7 @@ function setSubjectPanelOpen(isOpen) {
 
 function setFacultyPanelOpen(isOpen) {
   setPickerPanelOpen(els.facultyToggle, els.facultyPanel, isOpen);
+  if (isOpen) requestAnimationFrame(() => els.facultyPickerSearch.focus({ preventScroll: true }));
 }
 
 function setPickerPanelOpen(toggle, panel, isOpen) {
@@ -695,6 +794,9 @@ function handlePickerClick(event, kind) {
     els.facultyPickerSearch.value = "";
   }
   updatePickerFilter(kind);
+  if (kind === "faculty") {
+    requestAnimationFrame(() => els.facultyPickerSearch.focus({ preventScroll: true }));
+  }
 }
 
 function clearRecentPickerValues(kind) {
@@ -1118,13 +1220,21 @@ function drawHistoryChart(history) {
   }
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   const padding = { top: 24, right: 24, bottom: 70, left: 62 };
-  const seats = history.seats.map(Number);
   const students = history.students.map(Number);
   const labels = history.terms;
-  const max = Math.max(...seats, ...students, 1);
+  const max = Math.max(...students, 1);
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
-  const barWidth = Math.max(5, plotWidth / labels.length / 2.6);
+  const chartTerms = labels.map((label, index) => ({
+    label,
+    students: students[index],
+    term: historyTermParts(label),
+  })).sort((a, b) => a.term.academicYear - b.term.academicYear || historySeasonRank(a.term.season) - historySeasonRank(b.term.season));
+  const terms = chartTerms.map((entry) => entry.term);
+  const groupBreaks = terms.reduce((total, term, index) => total + Number(index > 0 && term.academicYear !== terms[index - 1].academicYear), 0);
+  const termWidth = plotWidth / (labels.length + groupBreaks * 0.75);
+  const groupGap = termWidth * 0.75;
+  const barWidth = Math.max(7, termWidth * 0.96);
 
   ctx.clearRect(0, 0, width, height);
   ctx.strokeStyle = "#d8e0ea";
@@ -1141,27 +1251,25 @@ function drawHistoryChart(history) {
     ctx.fillText(number.format(Math.round((max * i) / 4)), 8, y + 4);
   }
 
-  labels.forEach((label, index) => {
-    const x = padding.left + (plotWidth * index) / labels.length + plotWidth / labels.length / 2;
-    const seatHeight = (seats[index] / max) * plotHeight;
-    const studentHeight = (students[index] / max) * plotHeight;
+  let termStart = padding.left;
+  chartTerms.forEach(({ label, students: studentCount, term }, index) => {
+    if (index > 0 && terms[index].academicYear !== terms[index - 1].academicYear) termStart += groupGap;
+    const x = termStart + termWidth / 2;
+    const studentHeight = (studentCount / max) * plotHeight;
 
-    ctx.fillStyle = "#17375e";
-    ctx.fillRect(x - barWidth, padding.top + plotHeight - seatHeight, barWidth, seatHeight);
-    ctx.fillStyle = "#0a7c86";
-    ctx.fillRect(x + 1, padding.top + plotHeight - studentHeight, barWidth, studentHeight);
+    ctx.fillStyle = term.season === "Spring" ? "#3b969e" : "#0a7c86";
+    ctx.fillRect(x - barWidth / 2, padding.top + plotHeight - studentHeight, barWidth, studentHeight);
+    termStart += termWidth;
 
     if (index % 2 === 0 || labels.length < 16) {
       ctx.save();
       ctx.translate(x - 10, height - 12);
       ctx.rotate(-Math.PI / 4);
       ctx.fillStyle = "#607086";
-      ctx.fillText(label.replace("20", "'"), 0, 0);
+      ctx.fillText(historyTermLabel(label), 0, 0);
       ctx.restore();
     }
   });
-
-  drawLegend(ctx, width);
 
   if (!historyResizeObserver && "ResizeObserver" in window) {
     historyResizeObserver = new ResizeObserver(() => drawHistoryChart(history));
@@ -1169,19 +1277,27 @@ function drawHistoryChart(history) {
   }
 }
 
-function drawLegend(ctx, width) {
-  const entries = [
-    ["#17375e", "Seats"],
-    ["#0a7c86", "Students"],
-  ];
-  let x = width - 190;
-  entries.forEach(([color, label]) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(x, 14, 14, 14);
-    ctx.fillStyle = "#18212f";
-    ctx.fillText(label, x + 20, 26);
-    x += 86;
-  });
+function historyTermLabel(label) {
+  const term = historyTermParts(label);
+  if (!term.season) return term.code;
+  return `${term.code}${String(term.year).slice(-2)}`;
+}
+
+function historyTermParts(label) {
+  const match = String(label).match(/(\d{2,4})\s+(Fall|Spring|Summer)/i);
+  if (!match) return { year: null, season: "", code: String(label), academicYear: String(label) };
+  const year = Number(match[1]);
+  const season = match[2][0].toUpperCase() + match[2].slice(1).toLowerCase();
+  return {
+    year,
+    season,
+    code: { Fall: "FA", Spring: "SP", Summer: "SU" }[season],
+    academicYear: season === "Fall" ? year : year - 1,
+  };
+}
+
+function historySeasonRank(season) {
+  return { Fall: 0, Spring: 1, Summer: 2 }[season] ?? 3;
 }
 
 function exportCsv() {

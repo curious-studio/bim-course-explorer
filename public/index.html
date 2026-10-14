@@ -11,8 +11,9 @@
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.5</span>
-        <h1>DSU course enrollment interactive dashboard.</h1>
+        <span class="app-version">Version 0.6</span>
+        <h1>Enrollment Dashboard</h1>
+        <p class="header-subtitle">An interactive tool to explore enrollment data for courses at Dakota State University.</p>
       </div>
       <div class="header-actions">
         <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
@@ -40,7 +41,7 @@
             Search
             <input id="searchInput" type="search">
           </label>
-          <button id="resetButton" type="button">Reset</button>
+          <button id="shareViewButton" type="button" aria-live="polite">Share Current View</button>
         </div>
 
         <div class="primary-controls" aria-label="Primary filters">
@@ -96,6 +97,7 @@
             </span>
           </label>
           <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
+          <button id="resetButton" type="button">Reset All</button>
         </div>
       </section>
 
@@ -125,8 +127,8 @@
             <span id="tableCount">-</span>
           </div>
           <div class="view-toggle" role="group" aria-label="Section view">
-            <button id="tableViewButton" type="button" aria-pressed="true">Table</button>
-            <button id="cardViewButton" type="button" aria-pressed="false">Cards</button>
+            <button id="tableViewButton" type="button" aria-pressed="true">Table View</button>
+            <button id="cardViewButton" type="button" aria-pressed="false">Card View</button>
           </div>
         </div>
         <div class="section-actions" aria-label="Section sort controls">
@@ -157,6 +159,7 @@
         </div>
         <div id="sectionsCards" class="section-card-grid" hidden></div>
         <div class="section-footer">
+          <button id="shareViewButtonBottom" type="button" aria-live="polite">Share Current View</button>
           <button id="exportButton" type="button">Export visible CSV</button>
         </div>
       </section>
@@ -165,7 +168,7 @@
         <article class="panel chart-panel">
           <div class="panel-title">
             <h2>Enrollment History</h2>
-            <span>Seats offered vs occupied</span>
+            <span>Students enrolled</span>
           </div>
           <canvas id="historyChart" width="900" height="320" aria-label="Enrollment history chart"></canvas>
         </article>
@@ -214,6 +217,6 @@
       <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
     </footer>
 
-    <script src="./app.js?v=0.5"></script>
+    <script src="./app.js?v=0.6"></script>
   </body>
 </html>
