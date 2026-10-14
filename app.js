@@ -691,6 +691,9 @@ function handlePickerClick(event, kind) {
     config.selected.add(value);
     rememberPickerValue(kind, value);
   }
+  if (kind === "faculty") {
+    els.facultyPickerSearch.value = "";
+  }
   updatePickerFilter(kind);
 }
 

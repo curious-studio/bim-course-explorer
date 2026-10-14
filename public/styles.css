@@ -1019,6 +1019,7 @@ td:nth-child(8) {
   background: #fff;
   animation: card-fade-in 720ms ease-out both;
   padding: 24px;
+  box-shadow: 0 8px 18px rgba(24, 33, 47, 0.06);
 }
 
 @keyframes card-fade-in {
@@ -1054,7 +1055,7 @@ td:nth-child(8) {
 .section-card-kicker .course-link {
   color: #6b7280;
   font-size: 0.83rem;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .section-card-kicker span {
@@ -1067,7 +1068,7 @@ td:nth-child(8) {
   margin: 0 0 6px;
   color: #000;
   font-size: 1.5rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -1106,18 +1107,18 @@ td:nth-child(8) {
   border-radius: 999px;
   background: #a7e3c4;
   padding: 0 15px;
-  font-size: 1.39rem;
-  font-weight: 900;
+  font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1;
 }
 
 .enrollment-callout.high strong {
-  background: color-mix(in srgb, var(--teal) 22%, white);
+  background: color-mix(in srgb, var(--teal) 16%, white);
 }
 
 .enrollment-callout span {
   font-size: 0.6rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.14em;
 }
 
@@ -1126,7 +1127,8 @@ td:nth-child(8) {
 }
 
 .enrollment-callout.low strong {
-  background: #efd1d6;
+  border: solid #f98199 2px;
+  background: none;
 }
 
 .section-card-bottom {
@@ -1208,7 +1210,7 @@ td:nth-child(8) {
 .faculty-name {
   color: #000;
   font-size: 1.1rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1.05;
 }
 
