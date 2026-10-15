@@ -52,6 +52,7 @@ const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 let historyResizeObserver = null;
 let searchFilterTimer = null;
 let sectionRenderTimer = null;
+let stickyHeaderCondensed = null;
 
 function trackEvent(name, parameters = {}) {
   if (typeof window.gtag !== "function") return;
@@ -64,6 +65,8 @@ const SEARCH_FILTER_DELAY = 320;
 const SECTION_FADE_DELAY = 220;
 
 const els = {
+  appHeader: document.querySelector(".app-header"),
+  controls: document.querySelector(".controls"),
   termToggle: $("termToggle"),
   termSummary: $("termSummary"),
   termPanel: $("termPanel"),
@@ -262,6 +265,7 @@ function normalizeSection(section, termCode = "") {
 
 async function initialize() {
   bindEvents();
+  bindStickyHeader();
   loadPreferences();
   loadSharedView();
 
@@ -284,6 +288,47 @@ async function initialize() {
   } catch (error) {
     setStatus(`Could not load BIM data. ${error.message}. If this page is opened from another domain, the BIM server may need to allow browser cross-origin requests.`);
   }
+}
+
+function bindStickyHeader() {
+  const condenseThreshold = 120;
+  const expandThreshold = 8;
+
+  const updateStickyHeaderHeight = () => {
+    if (window.matchMedia("(min-width: 721px)").matches) {
+      document.documentElement.style.setProperty("--sticky-header-height", `${els.appHeader.offsetHeight}px`);
+    } else {
+      document.documentElement.style.removeProperty("--sticky-header-height");
+    }
+  };
+
+  const headerResizeObserver = new ResizeObserver(updateStickyHeaderHeight);
+  headerResizeObserver.observe(els.appHeader);
+
+  const sync = (force = false) => {
+    const isDesktop = window.matchMedia("(min-width: 721px)").matches;
+    const shouldCondense = isDesktop && (stickyHeaderCondensed
+      ? window.scrollY > expandThreshold
+      : window.scrollY > condenseThreshold);
+    if (!force && stickyHeaderCondensed === shouldCondense) return;
+    stickyHeaderCondensed = shouldCondense;
+    document.body.classList.toggle("header-condensed", shouldCondense);
+
+    window.requestAnimationFrame(() => {
+      updateStickyHeaderHeight();
+    });
+  };
+
+  let frame = null;
+  window.addEventListener("scroll", () => {
+    if (frame !== null) return;
+    frame = window.requestAnimationFrame(() => {
+      frame = null;
+      sync();
+    });
+  }, { passive: true });
+  window.addEventListener("resize", () => sync(true));
+  sync(true);
 }
 
 function getDefaultTerm(terms, history) {
@@ -355,7 +400,7 @@ function hydrateFilters() {
   renderPickerOptions("subject", subjects);
   renderPickerOptions("faculty", facultyNames);
 
-  els.genEdSelect.innerHTML = `<option value="">All attributes</option>${[...attrs.entries()]
+  els.genEdSelect.innerHTML = `<option value="">All Gen Ed attributes</option>${[...attrs.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([code, description]) => `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(description)}</option>`)
     .join("")}`;
@@ -457,8 +502,10 @@ async function shareCurrentView(placement) {
 }
 
 function setShareButtonText(text, isCopied, isRestoring = false) {
+  const headerLabel = els.shareViewButton.querySelector(".share-button-label");
+  if (headerLabel) headerLabel.textContent = text;
+  els.shareViewButtonBottom.textContent = text;
   [els.shareViewButton, els.shareViewButtonBottom].forEach((button) => {
-    button.textContent = text;
     button.classList.toggle("is-copied", isCopied);
     button.classList.toggle("is-restoring", isRestoring);
   });
@@ -722,7 +769,7 @@ function bindEvents() {
     loadSelectedTerms();
     trackEvent("dashboard_reset");
   });
-  els.shareViewButton.addEventListener("click", () => shareCurrentView("filters"));
+  els.shareViewButton.addEventListener("click", () => shareCurrentView("header"));
   els.shareViewButtonBottom.addEventListener("click", () => shareCurrentView("sections"));
   els.exportButton.addEventListener("click", () => {
     exportCsv();

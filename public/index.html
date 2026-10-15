@@ -13,19 +13,25 @@
       gtag("js", new Date());
       gtag("config", "G-DLBC0ETH0M");
     </script>
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=0.2">
   </head>
   <body>
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.1</span>
+        <span class="app-version">Version 0.2</span>
         <h1>Enrollment Dashboard</h1>
         <p class="header-subtitle">An interactive tool to explore enrollment data for courses at Dakota State University.</p>
       </div>
       <div class="header-actions">
-        <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
-        <div id="status" class="status" role="status">Loading BIM data...</div>
+        <button id="shareViewButton" class="header-share-button" type="button" aria-live="polite" title="Share current view">
+          <span class="share-button-label">Share Current View</span>
+          <svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 14V3m0 0-4 4m4-4 4 4M5 14v6h14v-6"></path></svg>
+        </button>
+        <div class="header-meta">
+          <a class="source-link" href="https://bim.inclass.today/" target="_blank" rel="noreferrer">Source data</a>
+          <div id="status" class="status" role="status">Loading BIM data...</div>
+        </div>
       </div>
     </header>
 
@@ -33,8 +39,7 @@
       <section class="controls" aria-label="Dashboard controls">
         <div class="secondary-controls" aria-label="Secondary filters">
           <div class="picker-filter term-filter">
-            Term
-            <button id="termToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="termPanel">
+            <button id="termToggle" class="picker-toggle" type="button" aria-label="Filter by term" aria-expanded="false" aria-controls="termPanel">
               <span id="termSummary">Loading terms</span>
               <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
@@ -46,16 +51,14 @@
             </div>
           </div>
           <label>
-            Search
-            <input id="searchInput" type="search">
+            <input id="searchInput" type="search" aria-label="Search courses" placeholder="Search by course number, name, classroom, instructor, etc.">
           </label>
-          <button id="shareViewButton" type="button" aria-live="polite">Share Current View</button>
+          <button id="resetButton" type="button">Reset All</button>
         </div>
 
         <div class="primary-controls" aria-label="Primary filters">
           <div class="picker-filter subject-filter">
-            Subject
-            <button id="subjectToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="subjectPanel">
+            <button id="subjectToggle" class="picker-toggle" type="button" aria-label="Filter by subject" aria-expanded="false" aria-controls="subjectPanel">
               <span id="subjectSummary">All subjects</span>
               <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
@@ -67,8 +70,7 @@
             </div>
           </div>
           <div class="picker-filter faculty-filter">
-            Faculty
-            <button id="facultyToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="facultyPanel">
+            <button id="facultyToggle" class="picker-toggle" type="button" aria-label="Filter by faculty" aria-expanded="false" aria-controls="facultyPanel">
               <span id="facultySummary">All faculty</span>
               <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
@@ -81,8 +83,7 @@
             </div>
           </div>
           <div class="picker-filter college-filter">
-            College
-            <button id="collegeToggle" class="picker-toggle" type="button" aria-expanded="false" aria-controls="collegePanel">
+            <button id="collegeToggle" class="picker-toggle" type="button" aria-label="Filter by college" aria-expanded="false" aria-controls="collegePanel">
               <span id="collegeSummary">All colleges</span>
               <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </button>
@@ -96,11 +97,10 @@
         </div>
 
         <div class="tertiary-controls" aria-label="Tertiary filters">
-          <label>
-            Delivery
+          <label aria-label="Filter by delivery mode">
             <span class="select-control">
               <select id="deliverySelect">
-                <option value="">All modes</option>
+                <option value="">All delivery modes</option>
                 <option value="internet">Internet</option>
                 <option value="campus">Campus</option>
                 <option value="unknown">Unknown</option>
@@ -108,28 +108,25 @@
               <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </span>
           </label>
-          <label>
-            Meeting days
+          <label aria-label="Filter by meeting schedule">
             <span class="select-control">
               <select id="meetingDaysSelect">
-                <option value="">All schedules</option>
+                <option value="">All meeting schedules</option>
                 <option value="mwf">Mon / Wed / Fri</option>
                 <option value="tth">Tues / Thurs</option>
               </select>
               <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </span>
           </label>
-          <label>
-            Gen Ed
+          <label aria-label="Filter by general education attribute">
             <span class="select-control">
               <select id="genEdSelect">
-                <option value="">All attributes</option>
+                <option value="">All Gen Ed attributes</option>
               </select>
               <svg class="select-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
             </span>
           </label>
           <button id="openOnlyButton" type="button" aria-pressed="false">Open seats only</button>
-          <button id="resetButton" type="button">Reset All</button>
         </div>
       </section>
 
@@ -249,6 +246,6 @@
       <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
     </footer>
 
-    <script src="./app.js?v=0.1"></script>
+    <script src="./app.js?v=0.2"></script>
   </body>
 </html>
