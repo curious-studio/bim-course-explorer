@@ -26,6 +26,7 @@ const state = {
   terms: [],
   selectedTerms: new Set(),
   termDataByCode: new Map(),
+  lastTermDataRequestAt: null,
   termData: null,
   history: null,
   historyRows: [],
@@ -51,6 +52,13 @@ const state = {
 const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat("en-US");
 const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+const requestTime = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
 let historyResizeObserver = null;
 let historyBars = [];
 let activeHistoryBarIndex = null;
@@ -417,6 +425,7 @@ async function loadLiveHistoryRows() {
       (data.classes ?? []).map((section) => normalizeSection(section, termCode)),
     ]));
     renderHistoryChart();
+    setTermDataRequestStatus();
   } catch {
     // The static snapshot remains available when BIM's live data cannot be reached.
   }
@@ -424,6 +433,7 @@ async function loadLiveHistoryRows() {
 
 async function getTermData(term) {
   if (!state.termDataByCode.has(term)) {
+    state.lastTermDataRequestAt = new Date();
     state.termDataByCode.set(term, fetchJson(`/data/${term}tiny.json`));
   }
   return state.termDataByCode.get(term);
@@ -446,13 +456,12 @@ async function loadSelectedTerms() {
   state.rows = termEntries.flatMap(([term, data]) => (data.classes ?? []).map((section) => normalizeSection(section, term)));
   hydrateFilters();
   applyFilters();
-  setStatus(`Updated ${latestUpdated(termEntries.map(([, data]) => data.updated))}.`, true);
+  setTermDataRequestStatus();
 }
 
-function latestUpdated(values) {
-  const dates = values.filter(Boolean).map((value) => ({ value, time: Date.parse(value) }));
-  const parsed = dates.filter((item) => Number.isFinite(item.time)).sort((a, b) => b.time - a.time);
-  return parsed[0]?.value ?? values.filter(Boolean).at(-1) ?? "unknown";
+function setTermDataRequestStatus() {
+  const requestedAt = state.lastTermDataRequestAt;
+  setStatus(requestedAt ? `Data refreshed ${requestTime.format(requestedAt)}.` : "Data refreshed during this dashboard session.", true);
 }
 
 function hydrateFilters() {
@@ -528,6 +537,10 @@ function loadSharedView() {
   els.genEdSelect.value = params.get("genEd") ?? "";
   state.openOnly = params.get("openOnly") === "1";
   state.sectionView = params.get("view") === "table" ? "table" : "cards";
+  const sectionsState = params.get("sections");
+  if (sectionsState === "open" || sectionsState === "closed") {
+    setSectionsPanelOpen(sectionsState === "open");
+  }
   state.sortKey = ["course", "faculty", "filled", "delivery", "startTime", "term"].includes(params.get("sort"))
     ? params.get("sort")
     : "course";
@@ -549,6 +562,7 @@ function buildSharedViewUrl() {
   if (els.genEdSelect.value) url.searchParams.set("genEd", els.genEdSelect.value);
   if (state.openOnly) url.searchParams.set("openOnly", "1");
   url.searchParams.set("view", state.sectionView);
+  url.searchParams.set("sections", els.sectionsPanelToggle.getAttribute("aria-expanded") === "true" ? "open" : "closed");
   url.searchParams.set("sort", state.sortKey);
   url.searchParams.set("sortDir", state.sortDir);
   return url.toString();
