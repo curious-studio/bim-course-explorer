@@ -28,6 +28,8 @@ const state = {
   termDataByCode: new Map(),
   termData: null,
   history: null,
+  historyRows: [],
+  liveHistoryRows: new Map(),
   rows: [],
   filtered: [],
   selectedSubjects: new Set(),
@@ -50,6 +52,9 @@ const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat("en-US");
 const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 let historyResizeObserver = null;
+let historyBars = [];
+let activeHistoryBarIndex = null;
+let historyTooltipHideTimer = null;
 let searchFilterTimer = null;
 let sectionRenderTimer = null;
 let stickyHeaderCondensed = null;
@@ -71,6 +76,7 @@ const els = {
   termSummary: $("termSummary"),
   termPanel: $("termPanel"),
   termOptions: $("termOptions"),
+  selectAllTermsButton: $("selectAllTermsButton"),
   clearTermsButton: $("clearTermsButton"),
   searchInput: $("searchInput"),
   subjectToggle: $("subjectToggle"),
@@ -102,11 +108,17 @@ const els = {
   occupancyMetric: $("occupancyMetric"),
   underenrolledMetric: $("underenrolledMetric"),
   historyChart: $("historyChart"),
+  historyChartTooltip: $("historyChartTooltip"),
+  historyChartTooltipContent: $("historyChartTooltipContent"),
   deliverySummary: $("deliverySummary"),
   deliveryBars: $("deliveryBars"),
   subjectBars: $("subjectBars"),
   facultyList: $("facultyList"),
   roomList: $("roomList"),
+  sectionsPanel: $("sectionsPanel"),
+  sectionsPanelTitle: $("sectionsPanelTitle"),
+  sectionsPanelToggle: $("sectionsPanelToggle"),
+  sectionsPanelContent: $("sectionsPanelContent"),
   sectionsBody: $("sectionsBody"),
   sectionsCards: $("sectionsCards"),
   tableCount: $("tableCount"),
@@ -120,6 +132,12 @@ async function fetchJson(path) {
   if (!response.ok) {
     throw new Error(`BIM returned ${response.status} for ${path}`);
   }
+  return response.json();
+}
+
+async function fetchStaticJson(path) {
+  const response = await fetch(new URL(path, window.location.href));
+  if (!response.ok) throw new Error(`Could not load ${path}`);
   return response.json();
 }
 
@@ -230,7 +248,7 @@ function getCreditHours(section) {
 
 function normalizeSection(section, termCode = "") {
   const meeting = getMeeting(section);
-  const faculty = section.faculty?.map((item) => item.displayName).filter(Boolean) ?? [];
+  const faculty = section.faculty?.map((item) => decodeHtml(item.displayName)).filter(Boolean) ?? [];
   const attrs = section.sectionAttributes?.map((item) => ({
     code: item.code,
     description: decodeHtml(item.description),
@@ -247,11 +265,11 @@ function normalizeSection(section, termCode = "") {
     termCode,
     termLabel,
     crn: section.courseReferenceNumber,
-    subject: section.subject,
-    courseNumber: section.courseNumber,
-    sequence: section.sequenceNumber,
+    subject: decodeHtml(section.subject),
+    courseNumber: decodeHtml(section.courseNumber),
+    sequence: decodeHtml(section.sequenceNumber),
     course,
-    title: section.courseTitle,
+    title: decodeHtml(section.courseTitle),
     credits: getCreditHours(section),
     max,
     available,
@@ -276,6 +294,20 @@ function normalizeSection(section, termCode = "") {
   };
 }
 
+function normalizeHistoryRecord(record) {
+  return {
+    termCode: record.t,
+    subject: record.s,
+    faculty: (record.f ?? []).map(decodeHtml),
+    delivery: record.d ?? "unknown",
+    dayKeys: record.m ?? [],
+    attributes: (record.g ?? []).map((code) => ({ code, description: code })),
+    filled: Number(record.e) || 0,
+    available: Number(record.a) || 0,
+    search: decodeHtml(record.q ?? ""),
+  };
+}
+
 async function initialize() {
   bindEvents();
   bindStickyHeader();
@@ -283,13 +315,15 @@ async function initialize() {
   loadSharedView();
 
   try {
-    const [terms, history] = await Promise.all([
+    const [terms, history, historyDataset] = await Promise.all([
       fetchJson("/history/api/terms"),
       fetchJson("/history/api/enrollment").catch(() => null),
+      fetchStaticJson("./api/history/section-history.json").catch(() => null),
     ]);
 
     state.terms = terms;
     state.history = history;
+    state.historyRows = (historyDataset?.rows ?? []).map(normalizeHistoryRecord);
     state.selectedTerms = new Set([...state.selectedTerms].filter((code) => terms.some((term) => term.code === code)));
     state.recentTerms = state.recentTerms.filter((code) => terms.some((term) => term.code === code));
     if (!state.selectedTerms.size && !state.hasSharedView) state.selectedTerms.add(getDefaultTerm(terms, history));
@@ -297,7 +331,7 @@ async function initialize() {
     renderPickerOptions("college", COLLEGE_OPTIONS.map(([value]) => value));
     applyStoredControls();
     await loadSelectedTerms();
-    if (history) drawHistoryChart(history);
+    void loadLiveHistoryRows();
   } catch (error) {
     setStatus(`Could not load BIM data. ${error.message}. If this page is opened from another domain, the BIM server may need to allow browser cross-origin requests.`);
   }
@@ -362,6 +396,30 @@ function getCalendarTermDescription(date = new Date()) {
   if (month >= 7) return `${year} Fall`;
   if (month >= 5) return `${year} Summer`;
   return `${year} Spring`;
+}
+
+function termDescriptionRank(description) {
+  const match = String(description).match(/^(\d{4})\s+(Fall|Spring|Summer)$/i);
+  if (!match) return -1;
+  const seasonRank = { Spring: 1, Summer: 2, Fall: 3 }[match[2][0].toUpperCase() + match[2].slice(1).toLowerCase()] ?? 0;
+  return Number(match[1]) * 10 + seasonRank;
+}
+
+async function loadLiveHistoryRows() {
+  const currentRank = termDescriptionRank(getCalendarTermDescription());
+  const liveTerms = state.terms.filter((term) => termDescriptionRank(term.description) >= currentRank);
+  if (!liveTerms.length) return;
+
+  try {
+    const entries = await Promise.all(liveTerms.map(async (term) => [term.code, await getTermData(term.code)]));
+    state.liveHistoryRows = new Map(entries.map(([termCode, data]) => [
+      termCode,
+      (data.classes ?? []).map((section) => normalizeSection(section, termCode)),
+    ]));
+    renderHistoryChart();
+  } catch {
+    // The static snapshot remains available when BIM's live data cannot be reached.
+  }
 }
 
 async function getTermData(term) {
@@ -429,13 +487,13 @@ function loadPreferences() {
       : typeof saved.term === "string" && saved.term ? [saved.term] : [];
     state.selectedTerms = new Set(savedTerms);
     state.selectedSubjects = new Set(Array.isArray(saved.subjects) ? saved.subjects.filter((subject) => typeof subject === "string") : []);
-    state.selectedFaculty = new Set(Array.isArray(saved.faculty) ? saved.faculty.filter((faculty) => typeof faculty === "string") : []);
+    state.selectedFaculty = new Set(Array.isArray(saved.faculty) ? saved.faculty.filter((faculty) => typeof faculty === "string").map(decodeHtml) : []);
     state.selectedColleges = new Set(Array.isArray(saved.colleges)
       ? saved.colleges.filter((college) => typeof college === "string")
       : typeof saved.college === "string" && saved.college ? [saved.college] : []);
     state.recentTerms = Array.isArray(saved.recentTerms) ? saved.recentTerms.filter((term) => typeof term === "string") : [];
     state.recentSubjects = Array.isArray(saved.recentSubjects) ? saved.recentSubjects.filter((subject) => typeof subject === "string") : [];
-    state.recentFaculty = Array.isArray(saved.recentFaculty) ? saved.recentFaculty.filter((faculty) => typeof faculty === "string") : [];
+    state.recentFaculty = Array.isArray(saved.recentFaculty) ? saved.recentFaculty.filter((faculty) => typeof faculty === "string").map(decodeHtml) : [];
     state.recentColleges = Array.isArray(saved.recentColleges) ? saved.recentColleges.filter((college) => typeof college === "string") : [];
     state.sectionView = saved.sectionView === "table" ? "table" : "cards";
     state.openOnly = Boolean(saved.openOnly);
@@ -458,7 +516,7 @@ function loadSharedView() {
   state.hasSharedView = true;
   state.selectedTerms = new Set(params.getAll("term"));
   state.selectedSubjects = new Set(params.getAll("subject"));
-  state.selectedFaculty = new Set(params.getAll("faculty"));
+  state.selectedFaculty = new Set(params.getAll("faculty").map(decodeHtml));
   state.selectedColleges = new Set(params.getAll("college"));
   state.recentTerms = [];
   state.recentSubjects = [];
@@ -470,7 +528,7 @@ function loadSharedView() {
   els.genEdSelect.value = params.get("genEd") ?? "";
   state.openOnly = params.get("openOnly") === "1";
   state.sectionView = params.get("view") === "table" ? "table" : "cards";
-  state.sortKey = ["course", "faculty", "filled", "delivery", "startTime"].includes(params.get("sort"))
+  state.sortKey = ["course", "faculty", "filled", "delivery", "startTime", "term"].includes(params.get("sort"))
     ? params.get("sort")
     : "course";
   state.sortDir = params.get("sortDir") === "desc" ? "desc" : "asc";
@@ -634,6 +692,7 @@ function removePreferenceStore() {
 }
 
 function bindEvents() {
+  bindHistoryChartInteractions();
   els.searchInput.addEventListener("input", () => {
     window.clearTimeout(searchFilterTimer);
     searchFilterTimer = window.setTimeout(() => {
@@ -708,6 +767,15 @@ function bindEvents() {
     state.recentTerms = [];
     updatePickerFilter("term");
     trackEvent("dashboard_filter_cleared", { filter_type: "term" });
+  });
+  els.selectAllTermsButton.addEventListener("click", () => {
+    state.selectedTerms = new Set(state.terms.map((term) => term.code));
+    updatePickerFilter("term");
+    trackEvent("dashboard_picker_selection_changed", {
+      picker_type: "term",
+      selection_action: "selected_all",
+      selection_count: state.selectedTerms.size,
+    });
   });
   els.clearSubjectsButton.addEventListener("click", () => {
     state.selectedSubjects.clear();
@@ -784,6 +852,11 @@ function bindEvents() {
   });
   els.shareViewButton.addEventListener("click", () => shareCurrentView("header"));
   els.shareViewButtonBottom.addEventListener("click", () => shareCurrentView("sections"));
+  els.sectionsPanelTitle.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSectionsPanelOpen(els.sectionsPanelToggle.getAttribute("aria-expanded") !== "true");
+  }, true);
   els.exportButton.addEventListener("click", () => {
     exportCsv();
     trackEvent("dashboard_exported", { format: "csv", visible_sections: state.filtered.length });
@@ -820,6 +893,14 @@ function bindEvents() {
       view: state.sectionView,
     });
   });
+}
+
+function setSectionsPanelOpen(isOpen) {
+  els.sectionsPanelToggle.setAttribute("aria-expanded", String(isOpen));
+  els.sectionsPanelToggle.setAttribute("aria-label", `${isOpen ? "Collapse" : "Expand"} sections panel`);
+  els.sectionsPanel.classList.toggle("is-collapsed", !isOpen);
+  els.sectionsPanelContent.setAttribute("aria-hidden", String(!isOpen));
+  els.sectionsPanelContent.inert = !isOpen;
 }
 
 function eventPathIncludes(event, className) {
@@ -1039,10 +1120,12 @@ function updatePickerSummary(kind) {
   const config = pickerConfig(kind);
   const selected = sortPickerSelections(kind, [...config.selected]);
   const display = kind === "faculty" ? selected.map(lastName) : selected.map(config.label);
+  const allTermsSelected = kind === "term" && state.terms.length > 0 && selected.length === state.terms.length;
   config.summary.textContent = selected.length
-    ? kind === "term" ? display.join(", ") : `${selected.length} selected: ${display.join(", ")}`
+    ? allTermsSelected ? "All terms" : kind === "term" ? display.join(", ") : `${selected.length} selected: ${display.join(", ")}`
     : config.all;
   config.clearButton.disabled = selected.length === 0;
+  if (kind === "term") els.selectAllTermsButton.disabled = allTermsSelected;
 }
 
 function sortPickerSelections(kind, values) {
@@ -1055,6 +1138,13 @@ function termSortRank(code) {
   if (!term) return 0;
   const seasonRank = { Fall: 3, Spring: 2, Summer: 1 }[term.season] ?? 0;
   return term.academicYear * 10 + seasonRank;
+}
+
+function termChronologicalRank(code) {
+  const term = getTermParts(code);
+  if (!term) return 0;
+  const seasonRank = { Spring: 1, Summer: 2, Fall: 3 }[term.season] ?? 0;
+  return term.year * 10 + seasonRank;
 }
 
 function termLabel(code) {
@@ -1103,14 +1193,15 @@ function syncCardSortButtons() {
     const direction = state.sortDir === "asc" ? "ascending" : "descending";
     control.setAttribute("aria-current", String(active));
     control.setAttribute("aria-label", active ? `Sort by ${label}, ${direction}` : `Sort by ${label}`);
-    control.innerHTML = active ? `${label}${sortArrowSvg(state.sortDir, control.dataset.cardSort === "startTime")}` : label;
+    control.innerHTML = `${label}${sortArrowsSvg(state.sortDir, active, control.dataset.cardSort === "startTime")}`;
   });
 }
 
-function sortArrowSvg(direction, reverseDirection = false) {
+function sortArrowsSvg(direction, active, reverseDirection = false) {
   const pointsUp = reverseDirection ? direction === "desc" : direction === "asc";
-  const path = pointsUp ? "M12 5l-5 6h10l-5-6z" : "M12 19l5-6H7l5 6z";
-  return `<svg class="sort-arrow" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
+  const upClass = active && pointsUp ? " is-active" : "";
+  const downClass = active && !pointsUp ? " is-active" : "";
+  return `<span class="sort-arrows" aria-hidden="true"><svg class="sort-arrow${upClass}" viewBox="0 0 24 24" focusable="false"><path d="M12 5l-5 6h10l-5-6z"></path></svg><svg class="sort-arrow${downClass}" viewBox="0 0 24 24" focusable="false"><path d="M12 19l5-6H7l5 6z"></path></svg></span>`;
 }
 
 function sortLabel(key) {
@@ -1120,6 +1211,7 @@ function sortLabel(key) {
     filled: "Enrollment",
     delivery: "Delivery",
     startTime: "Start Time",
+    term: "Term",
   }[key] ?? key;
 }
 
@@ -1132,23 +1224,26 @@ function applyFilters({ transitionSections = true } = {}) {
   const meetingDays = els.meetingDaysSelect.value;
   const genEd = els.genEdSelect.value;
 
-  state.filtered = state.rows.filter((row) => {
-    if (query && !row.search.includes(query)) return false;
-    if (subjects.size && !subjects.has(row.subject)) return false;
-    if (colleges.size && ![...colleges].some((college) => COLLEGE_SUBJECTS[college]?.has(row.subject))) return false;
-    if (facultyNames.size) {
-      const names = row.faculty.length ? row.faculty : ["None assigned"];
-      if (!names.some((name) => facultyNames.has(name))) return false;
-    }
-    if (delivery && row.delivery !== delivery) return false;
-    if (meetingDays && !matchesMeetingDays(row, meetingDays)) return false;
-    if (genEd && !row.attributes.some((attr) => attr.code === genEd)) return false;
-    if (state.openOnly && row.available <= 0) return false;
-    return true;
-  });
+  state.filtered = state.rows.filter((row) => matchesFilters(row, {
+    query, subjects, facultyNames, colleges, delivery, meetingDays, genEd,
+  }));
 
   renderAll({ transitionSections });
   savePreferences();
+}
+
+function matchesFilters(row, { query, subjects, facultyNames, colleges, delivery, meetingDays, genEd }) {
+  if (query && !row.search.includes(query)) return false;
+  if (subjects.size && !subjects.has(row.subject)) return false;
+  if (colleges.size && ![...colleges].some((college) => COLLEGE_SUBJECTS[college]?.has(row.subject))) return false;
+  if (facultyNames.size) {
+    const names = row.faculty.length ? row.faculty : ["None assigned"];
+    if (!names.some((name) => facultyNames.has(name))) return false;
+  }
+  if (delivery && row.delivery !== delivery) return false;
+  if (meetingDays && !matchesMeetingDays(row, meetingDays)) return false;
+  if (genEd && !row.attributes.some((attr) => attr.code === genEd)) return false;
+  return !state.openOnly || row.available > 0;
 }
 
 function matchesMeetingDays(row, pattern) {
@@ -1163,6 +1258,7 @@ function matchesMeetingDays(row, pattern) {
 
 function renderAll({ transitionSections = true } = {}) {
   renderMetrics();
+  renderHistoryChart();
   renderDelivery();
   renderSubjectBars();
   renderRanks("facultyList", facultyStats(state.filtered), "sections", "Underenrolled");
@@ -1208,9 +1304,10 @@ function renderDelivery() {
   ]
     .map(([key, label]) => {
       const pct = (counts[key] / total) * 100;
+      const fillPct = pct < 0.1 ? 0 : pct;
       return `<div class="delivery-row">
         <header><strong>${label}</strong><span>${number.format(counts[key])} sections (${percent.format(pct)}%)</span></header>
-        <div class="track"><span class="fill ${key}" style="width:${pct}%"></span></div>
+        <div class="track"><span class="fill ${key}" style="width:${fillPct}%"></span></div>
       </div>`;
     })
     .join("");
@@ -1220,8 +1317,7 @@ function renderSubjectBars() {
   const stats = mapStats(state.filtered, (row) => row.subject);
   const top = [...stats.entries()]
     .map(([name, value]) => ({ name, ...value }))
-    .sort((a, b) => b.sections - a.sections)
-    .slice(0, 12);
+    .sort((a, b) => b.sections - a.sections);
   const max = Math.max(1, ...top.map((item) => item.sections));
   els.subjectBars.innerHTML = top.length
     ? top
@@ -1281,8 +1377,7 @@ function renderRanks(targetId, stats, unit, extraLabel = "") {
         if (underenrolledDiff) return underenrolledDiff;
       }
       return b.sections - a.sections;
-    })
-    .slice(0, 12);
+    });
   const target = $(targetId);
   target.classList.toggle("has-extra", Boolean(extraLabel));
   target.innerHTML = rows.length
@@ -1323,6 +1418,7 @@ function sortValue(row, key) {
   if (key === "attributes") return row.attributes.map((attr) => attr.code).join(", ");
   if (key === "meeting") return row.meeting;
   if (key === "startTime") return row.startTime;
+  if (key === "term") return termChronologicalRank(row.termCode);
   return row[key] ?? "";
 }
 
@@ -1452,13 +1548,53 @@ function emptyMessage(message) {
   return `<p class="empty">${escapeHtml(message)}</p>`;
 }
 
-function drawHistoryChart(history) {
+function renderHistoryChart() {
+  if (!state.historyRows.length) {
+    if (!state.history) return;
+    drawHistoryChart(state.history.terms.map((label, index) => ({
+      label,
+      students: Number(state.history.students?.[index]) || 0,
+    })));
+    return;
+  }
+
+  const query = els.searchInput.value.trim().toLowerCase();
+  const filters = {
+    query,
+    subjects: state.selectedSubjects,
+    facultyNames: state.selectedFaculty,
+    colleges: state.selectedColleges,
+    delivery: els.deliverySelect.value,
+    meetingDays: els.meetingDaysSelect.value,
+    genEd: els.genEdSelect.value,
+  };
+  const selectedTerms = state.selectedTerms.size
+    ? state.selectedTerms
+    : new Set(state.terms.map((term) => term.code));
+  const liveTerms = new Set(state.liveHistoryRows.keys());
+  const rows = [
+    ...state.historyRows.filter((row) => !liveTerms.has(row.termCode)),
+    ...[...state.liveHistoryRows.values()].flat(),
+  ];
+  const enrolledByTerm = new Map([...selectedTerms].map((termCode) => [termCode, 0]));
+
+  rows.forEach((row) => {
+    if (!selectedTerms.has(row.termCode) || !matchesFilters(row, filters)) return;
+    enrolledByTerm.set(row.termCode, (enrolledByTerm.get(row.termCode) ?? 0) + row.filled);
+  });
+
+  drawHistoryChart(state.terms
+    .filter((term) => selectedTerms.has(term.code))
+    .map((term) => ({ label: term.description, students: enrolledByTerm.get(term.code) ?? 0 })));
+}
+
+function drawHistoryChart(entries) {
   const canvas = els.historyChart;
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(320, rect.width || canvas.clientWidth || canvas.width);
   const height = Math.max(260, rect.height || canvas.clientHeight || canvas.height);
-  const ratio = window.devicePixelRatio || 1;
+  const ratio = (window.devicePixelRatio || 1) * 2;
   const pixelWidth = Math.round(width * ratio);
   const pixelHeight = Math.round(height * ratio);
   if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
@@ -1466,9 +1602,9 @@ function drawHistoryChart(history) {
     canvas.height = pixelHeight;
   }
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const padding = { top: 24, right: 24, bottom: 70, left: 62 };
-  const students = history.students.map(Number);
-  const labels = history.terms;
+  const padding = { top: 24, right: 24, bottom: 50, left: 62 };
+  const students = entries.map(({ students: studentCount }) => Number(studentCount) || 0);
+  const labels = entries.map(({ label }) => label);
   const max = Math.max(...students, 1);
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
@@ -1479,9 +1615,20 @@ function drawHistoryChart(history) {
   })).sort((a, b) => a.term.academicYear - b.term.academicYear || historySeasonRank(a.term.season) - historySeasonRank(b.term.season));
   const terms = chartTerms.map((entry) => entry.term);
   const groupBreaks = terms.reduce((total, term, index) => total + Number(index > 0 && term.academicYear !== terms[index - 1].academicYear), 0);
-  const termWidth = plotWidth / (labels.length + groupBreaks * 0.75);
-  const groupGap = termWidth * 0.75;
-  const barWidth = Math.max(7, termWidth * 0.96);
+  const minimumGroupGap = 24;
+  const barWidth = Math.min(24, Math.max(1, (plotWidth - groupBreaks * minimumGroupGap) / labels.length));
+  const groupGap = groupBreaks
+    ? Math.min(48, Math.max(minimumGroupGap, (plotWidth - labels.length * barWidth) / groupBreaks))
+    : 0;
+  const colors = getComputedStyle(document.documentElement);
+  const seasonColors = {
+    Fall: colors.getPropertyValue("--navy").trim() || "#17375e",
+    Spring: colors.getPropertyValue("--teal").trim() || "#0a7c86",
+    Summer: colors.getPropertyValue("--teal-summer").trim() || "#81b9bc",
+  };
+  const fallPattern = createFallPattern(ctx, seasonColors.Fall);
+  historyBars = [];
+  hideHistoryTooltip();
 
   ctx.clearRect(0, 0, width, height);
   ctx.strokeStyle = "#d8e0ea";
@@ -1501,33 +1648,135 @@ function drawHistoryChart(history) {
   let termStart = padding.left;
   chartTerms.forEach(({ label, students: studentCount, term }, index) => {
     if (index > 0 && terms[index].academicYear !== terms[index - 1].academicYear) termStart += groupGap;
-    const x = termStart + termWidth / 2;
+    const x = termStart + barWidth / 2;
     const studentHeight = (studentCount / max) * plotHeight;
+    const y = padding.top + plotHeight - studentHeight;
 
-    ctx.fillStyle = term.season === "Spring" ? "#3b969e" : "#0a7c86";
-    ctx.fillRect(x - barWidth / 2, padding.top + plotHeight - studentHeight, barWidth, studentHeight);
-    termStart += termWidth;
+    ctx.fillStyle = term.season === "Fall" ? fallPattern : (seasonColors[term.season] || seasonColors.Spring);
+    ctx.fillRect(x - barWidth / 2, y, barWidth, studentHeight);
+    historyBars.push({
+      label,
+      students: studentCount,
+      x,
+      y,
+      width: barWidth,
+      height: studentHeight,
+      baseline: padding.top + plotHeight,
+    });
+    termStart += barWidth;
 
-    if (index % 2 === 0 || labels.length < 16) {
-      ctx.save();
-      ctx.translate(x - 10, height - 12);
-      ctx.rotate(-Math.PI / 4);
-      ctx.fillStyle = "#607086";
-      ctx.fillText(historyTermLabel(label), 0, 0);
-      ctx.restore();
-    }
+    ctx.fillStyle = seasonColors[term.season] || seasonColors.Spring;
+    ctx.font = '700 10px "Saira", ui-sans-serif, system-ui, sans-serif';
+    ctx.textAlign = "center";
+    ctx.fillText(term.code, x, height - 27);
+    ctx.fillText(String(term.year).slice(-2), x, height - 14);
+    ctx.textAlign = "start";
   });
 
   if (!historyResizeObserver && "ResizeObserver" in window) {
-    historyResizeObserver = new ResizeObserver(() => drawHistoryChart(history));
+    historyResizeObserver = new ResizeObserver(() => renderHistoryChart());
     historyResizeObserver.observe(canvas);
   }
 }
 
-function historyTermLabel(label) {
-  const term = historyTermParts(label);
-  if (!term.season) return term.code;
-  return `${term.code}${String(term.year).slice(-2)}`;
+function bindHistoryChartInteractions() {
+  const canvas = els.historyChart;
+  canvas.addEventListener("pointermove", (event) => {
+    updateHistoryTooltipFromPointer(event);
+  });
+  canvas.addEventListener("mousemove", updateHistoryTooltipFromPointer);
+  canvas.addEventListener("pointerleave", () => {
+    canvas.style.cursor = "default";
+    hideHistoryTooltip();
+  });
+  document.addEventListener("pointermove", dismissHistoryTooltipOutsideBar, true);
+  document.addEventListener("mousemove", dismissHistoryTooltipOutsideBar, true);
+  canvas.addEventListener("blur", hideHistoryTooltip);
+  canvas.addEventListener("keydown", (event) => {
+    if (!historyBars.length || !["ArrowLeft", "ArrowRight", "Home", "End", "Escape"].includes(event.key)) return;
+    if (event.key === "Escape") {
+      hideHistoryTooltip();
+      return;
+    }
+    event.preventDefault();
+    const current = activeHistoryBarIndex ?? 0;
+    const next = event.key === "ArrowLeft" ? current - 1
+      : event.key === "ArrowRight" ? current + 1
+        : event.key === "Home" ? 0
+          : historyBars.length - 1;
+    showHistoryTooltip(Math.max(0, Math.min(historyBars.length - 1, next)));
+  });
+}
+
+function updateHistoryTooltipFromPointer(event) {
+  const index = historyBarAt(event.clientX, event.clientY);
+  els.historyChart.style.cursor = index === -1 ? "default" : "pointer";
+  if (index === -1) {
+    hideHistoryTooltip();
+    return;
+  }
+  showHistoryTooltip(index);
+}
+
+function dismissHistoryTooltipOutsideBar(event) {
+  if (els.historyChartTooltip.hidden || historyBarAt(event.clientX, event.clientY) !== -1) return;
+  els.historyChart.style.cursor = "default";
+  hideHistoryTooltip();
+}
+
+function historyBarAt(clientX, clientY) {
+  const rect = els.historyChart.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  return historyBars.findIndex((bar) => {
+    const left = bar.x - bar.width / 2;
+    const hitTop = bar.baseline - Math.max(bar.height, 8);
+    return x >= left && x <= left + bar.width && y >= hitTop && y <= bar.baseline;
+  });
+}
+
+function showHistoryTooltip(index) {
+  const bar = historyBars[index];
+  if (!bar) return;
+  activeHistoryBarIndex = index;
+  const tooltip = els.historyChartTooltip;
+  const canvas = els.historyChart;
+  els.historyChartTooltipContent.innerHTML = `<strong>${escapeHtml(bar.label)}</strong><span>${number.format(bar.students)} students enrolled</span>`;
+  window.clearTimeout(historyTooltipHideTimer);
+  tooltip.hidden = false;
+  const left = Math.max(4, Math.min(canvas.clientWidth - tooltip.offsetWidth - 4, bar.x));
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${bar.y - 8}px`;
+  requestAnimationFrame(() => tooltip.classList.add("is-visible"));
+  canvas.setAttribute("aria-label", `${bar.label}: ${number.format(bar.students)} students enrolled. Use left and right arrow keys to explore terms.`);
+}
+
+function hideHistoryTooltip() {
+  const tooltip = els.historyChartTooltip;
+  if (tooltip.hidden) return;
+  tooltip.classList.remove("is-visible");
+  window.clearTimeout(historyTooltipHideTimer);
+  historyTooltipHideTimer = window.setTimeout(() => {
+    if (!tooltip.classList.contains("is-visible")) tooltip.hidden = true;
+  }, 125);
+}
+
+function createFallPattern(ctx, color) {
+  const patternCanvas = document.createElement("canvas");
+  patternCanvas.width = 8;
+  patternCanvas.height = 8;
+  const patternContext = patternCanvas.getContext("2d");
+  patternContext.fillStyle = color;
+  patternContext.fillRect(0, 0, 8, 8);
+  patternContext.strokeStyle = "rgba(255, 255, 255, 0.72)";
+  patternContext.lineWidth = 1;
+  patternContext.beginPath();
+  patternContext.moveTo(-4, 8);
+  patternContext.lineTo(8, -4);
+  patternContext.moveTo(0, 12);
+  patternContext.lineTo(12, 0);
+  patternContext.stroke();
+  return ctx.createPattern(patternCanvas, "repeat") || color;
 }
 
 function historyTermParts(label) {

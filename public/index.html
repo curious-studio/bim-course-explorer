@@ -13,13 +13,13 @@
       gtag("js", new Date());
       gtag("config", "G-DLBC0ETH0M");
     </script>
-    <link rel="stylesheet" href="./styles.css?v=0.3">
+    <link rel="stylesheet" href="./styles.css?v=0.4&build=history-tooltip-transitions">
   </head>
   <body>
     <header class="app-header">
       <div class="brand-block">
         <p class="eyebrow">BIM Course Explorer</p>
-        <span class="app-version">Version 0.3</span>
+        <span class="app-version">Version 0.4</span>
         <h1>Enrollment Dashboard</h1>
         <p class="header-subtitle">An interactive tool to explore enrollment data for courses at Dakota State University.</p>
       </div>
@@ -45,6 +45,7 @@
             </button>
             <div id="termPanel" class="picker-panel" hidden>
               <div class="picker-panel-title">
+                <button id="selectAllTermsButton" type="button">Select all</button>
                 <button id="clearTermsButton" type="button">Clear</button>
               </div>
               <div id="termOptions" class="picker-options" aria-label="Term choices"></div>
@@ -149,48 +150,56 @@
         </article>
       </section>
 
-      <section class="panel table-panel">
-        <div class="panel-title table-title">
-          <div>
+      <section id="sectionsPanel" class="panel table-panel">
+        <div class="panel-title table-title" id="sectionsPanelTitle">
+          <div class="section-heading">
+            <button id="sectionsPanelToggle" class="sections-panel-toggle" type="button" aria-label="Collapse sections panel" aria-expanded="true" aria-controls="sectionsPanelContent">
+              <svg class="picker-arrow" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 12l6-6v12l-6-6z"></path></svg>
+            </button>
+            <div>
             <h2>Sections</h2>
             <span id="tableCount">-</span>
+            </div>
           </div>
           <div class="view-toggle" role="group" aria-label="Section view">
             <button id="tableViewButton" type="button" aria-pressed="true">Table View</button>
             <button id="cardViewButton" type="button" aria-pressed="false">Card View</button>
           </div>
         </div>
-        <div class="section-actions" aria-label="Section sort controls">
-          <div class="card-sort-buttons" aria-label="Card sort">
-            <span>Sort</span>
-            <a href="#" data-card-sort="course">Course</a>
-            <a href="#" data-card-sort="faculty">Faculty</a>
-            <a href="#" data-card-sort="filled">Enrollment</a>
-            <a href="#" data-card-sort="delivery">Delivery</a>
-            <a href="#" data-card-sort="startTime">Start Time</a>
+        <div id="sectionsPanelContent" class="sections-panel-content">
+          <div class="section-actions" aria-label="Section sort controls">
+            <div class="card-sort-buttons" aria-label="Card sort">
+              <span>Sort by:</span>
+              <a href="#" data-card-sort="course">Course</a>
+              <a href="#" data-card-sort="faculty">Faculty</a>
+              <a href="#" data-card-sort="filled">Enrollment</a>
+              <a href="#" data-card-sort="delivery">Delivery</a>
+              <a href="#" data-card-sort="startTime">Start Time</a>
+              <a href="#" data-card-sort="term">Term</a>
+            </div>
           </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th data-sort="course">Course</th>
-                <th data-sort="title">Title</th>
-                <th data-sort="filled">Filled</th>
-                <th data-sort="available">Open</th>
-                <th data-sort="delivery">Delivery</th>
-                <th data-sort="meeting">Meeting</th>
-                <th data-sort="faculty">Faculty</th>
-                <th data-sort="attributes">Attributes</th>
-              </tr>
-            </thead>
-            <tbody id="sectionsBody"></tbody>
-          </table>
-        </div>
-        <div id="sectionsCards" class="section-card-grid" hidden></div>
-        <div class="section-footer">
-          <button id="shareViewButtonBottom" type="button" aria-live="polite">Share Current View</button>
-          <button id="exportButton" type="button">Export visible CSV</button>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="course">Course</th>
+                  <th data-sort="title">Title</th>
+                  <th data-sort="filled">Filled</th>
+                  <th data-sort="available">Open</th>
+                  <th data-sort="delivery">Delivery</th>
+                  <th data-sort="meeting">Meeting</th>
+                  <th data-sort="faculty">Faculty</th>
+                  <th data-sort="attributes">Attributes</th>
+                </tr>
+              </thead>
+              <tbody id="sectionsBody"></tbody>
+            </table>
+          </div>
+          <div id="sectionsCards" class="section-card-grid" hidden></div>
+          <div class="section-footer">
+            <button id="shareViewButtonBottom" type="button" aria-live="polite">Share Current View</button>
+            <button id="exportButton" type="button">Export visible CSV</button>
+          </div>
         </div>
       </section>
 
@@ -198,11 +207,26 @@
         <article class="panel chart-panel">
           <div class="panel-title">
             <h2>Enrollment History</h2>
-            <span>Students enrolled</span>
+            <div class="chart-header-meta">
+              <span>Students enrolled</span>
+              <span class="history-legend" aria-label="Semester colors: Fall, Spring, Summer">
+                <span><i class="history-swatch fall" aria-hidden="true"></i>Fall</span>
+                <span><i class="history-swatch spring" aria-hidden="true"></i>Spring</span>
+                <span><i class="history-swatch summer" aria-hidden="true"></i>Summer</span>
+              </span>
+            </div>
           </div>
-          <canvas id="historyChart" width="900" height="320" aria-label="Enrollment history chart"></canvas>
+          <div class="history-chart-wrap">
+            <canvas id="historyChart" width="900" height="320" tabindex="0" aria-label="Enrollment history chart. Use left and right arrow keys to explore terms." aria-describedby="historyChartHelp"></canvas>
+            <div id="historyChartTooltip" class="history-chart-tooltip" role="tooltip" hidden>
+              <div id="historyChartTooltipContent" class="history-tooltip-content"></div>
+            </div>
+            <p id="historyChartHelp" class="visually-hidden">Hover over a bar or use the left and right arrow keys while the chart is focused to view enrollment details.</p>
+          </div>
         </article>
+      </section>
 
+      <section class="insight-layout delivery-classrooms">
         <article class="panel">
           <div class="panel-title">
             <h2>Delivery Mix</h2>
@@ -210,18 +234,26 @@
           </div>
           <div id="deliveryBars" class="stacked-bars"></div>
         </article>
-      </section>
 
-      <section class="split-panels">
-        <article class="panel">
+        <article class="panel scroll-panel">
           <div class="panel-title">
             <h2>Classrooms</h2>
             <span>Campus meetings only</span>
           </div>
-          <div id="roomList" class="rank-list"></div>
+          <div id="roomList" class="rank-list" tabindex="0" aria-label="Classrooms"></div>
+        </article>
+      </section>
+
+      <section class="insight-layout faculty-subjects">
+        <article class="panel scroll-panel">
+          <div class="panel-title">
+            <h2>Subject Load</h2>
+            <span>Top subjects in current filter</span>
+          </div>
+          <div id="subjectBars" class="bar-list" tabindex="0" aria-label="Subject loads"></div>
         </article>
 
-        <article class="panel">
+        <article class="panel scroll-panel">
           <div class="panel-title">
             <h2>Faculty Loads</h2>
             <span class="faculty-column-headings">
@@ -229,24 +261,16 @@
               <span>Underenrolled</span>
             </span>
           </div>
-          <div id="facultyList" class="rank-list"></div>
+          <div id="facultyList" class="rank-list" tabindex="0" aria-label="Faculty loads"></div>
         </article>
-      </section>
-
-      <section class="panel">
-        <div class="panel-title">
-          <h2>Subject Load</h2>
-          <span>Top subjects in current filter</span>
-        </div>
-        <div id="subjectBars" class="bar-list"></div>
       </section>
     </main>
 
     <footer class="app-footer">
-      <p>Created by Tim Murray · Built with Codex and ChatGPT · Data from <a href="https://bim.inclass.today/" target="_blank" rel="noreferrer">bim.inclass.today</a> · Last updated October 14, 2026</p>
+      <p>Created by Tim Murray · Built with Codex and ChatGPT · Data from <a href="https://bim.inclass.today/" target="_blank" rel="noreferrer">bim.inclass.today</a> · Last updated October 16, 2026</p>
       <p class="footer-colophon">Colophon: Set in Saira, designed by Héctor Gatti with character set completion by the Omnibus-Type Team; self-hosted under the SIL Open Font License.</p>
     </footer>
 
-    <script src="./app.js?v=0.3"></script>
+    <script src="./app.js?v=0.4&build=history-tooltip-transitions"></script>
   </body>
 </html>

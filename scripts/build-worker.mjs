@@ -6,11 +6,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = resolve(root, "public");
 const distRoot = resolve(root, "dist");
 
-const [html, css, js, manifest] = await Promise.all([
+const [html, css, js, manifest, historyDataset, tooltipSvg] = await Promise.all([
   readFile(resolve(publicRoot, "index.html"), "utf8"),
   readFile(resolve(publicRoot, "styles.css"), "utf8"),
   readFile(resolve(publicRoot, "app.js"), "utf8"),
   readFile(resolve(root, ".openai/hosting.json"), "utf8"),
+  readFile(resolve(root, "api/history/section-history.json"), "utf8"),
+  readFile(resolve(publicRoot, "tooltip.svg"), "utf8"),
 ]);
 
 const worker = `const ASSETS = new Map([
@@ -18,6 +20,8 @@ const worker = `const ASSETS = new Map([
   ["/index.html", { type: "text/html; charset=utf-8", body: ${JSON.stringify(html)} }],
   ["/styles.css", { type: "text/css; charset=utf-8", body: ${JSON.stringify(css)} }],
   ["/app.js", { type: "text/javascript; charset=utf-8", body: ${JSON.stringify(js)} }],
+  ["/tooltip.svg", { type: "image/svg+xml", body: ${JSON.stringify(tooltipSvg)} }],
+  ["/api/history/section-history.json", { type: "application/json; charset=utf-8", body: ${JSON.stringify(historyDataset)} }],
   ${await fontAssetEntries()}
 ]);
 
@@ -60,16 +64,16 @@ export default {
   async fetch(request) {
     const url = new URL(request.url);
 
-    if (url.pathname.startsWith("/api/")) {
-      return proxyBim(request, url);
-    }
-
     const asset = ASSETS.get(url.pathname);
     if (asset) {
       const body = asset.base64 ? Uint8Array.from(atob(asset.base64), (char) => char.charCodeAt(0)) : asset.body;
       return new Response(body, {
         headers: securityHeaders(asset.type),
       });
+    }
+
+    if (url.pathname.startsWith("/api/")) {
+      return proxyBim(request, url);
     }
 
     return new Response("Not found", { status: 404 });

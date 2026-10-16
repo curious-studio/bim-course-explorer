@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHistoryDataset } from "./history-dataset.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = resolve(root, "public");
@@ -38,9 +39,13 @@ await Promise.all([
   writeJson("api/history/api/enrollment", enrollment),
 ]);
 
+const termDataEntries = [];
 for (const term of terms) {
   const data = await fetchJson(`/data/${term.code}tiny.json`);
+  termDataEntries.push([term.code, data]);
   await writeJson(`api/data/${term.code}tiny.json`, data);
 }
+
+await writeJson("api/history/section-history.json", createHistoryDataset(terms, termDataEntries));
 
 console.log(`Built GitHub Pages site in ${pagesRoot}`);
