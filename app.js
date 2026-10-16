@@ -1386,11 +1386,10 @@ function renderRanks(targetId, stats, unit, extraLabel = "") {
   const rows = [...stats.entries()]
     .map(([name, value]) => ({ name, ...value }))
     .sort((a, b) => {
-      if (extraLabel) {
-        const underenrolledDiff = (b.underenrolled ?? 0) - (a.underenrolled ?? 0);
-        if (underenrolledDiff) return underenrolledDiff;
-      }
-      return b.sections - a.sections;
+      const sectionDiff = b.sections - a.sections;
+      if (sectionDiff) return sectionDiff;
+      const underenrolledDiff = (b.underenrolled ?? 0) - (a.underenrolled ?? 0);
+      return underenrolledDiff || a.name.localeCompare(b.name);
     });
   const target = $(targetId);
   target.classList.toggle("has-extra", Boolean(extraLabel));
