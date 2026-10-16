@@ -151,6 +151,7 @@ function getMeeting(section) {
       label: "Unknown",
       room: "Unknown",
       time: "",
+      startTime: null,
       meeting: "Meeting TBD",
       days: [],
       dayKeys: [],
@@ -171,6 +172,7 @@ function getMeeting(section) {
   const days = activeDays.map(([, label]) => label);
   const dayKeys = activeDays.map(([key]) => key);
   const time = meeting.beginTime && meeting.endTime ? `${formatTime(meeting.beginTime)}-${formatTime(meeting.endTime)}` : "";
+  const startTime = meeting.beginTime ? parseMeetingStartTime(meeting.beginTime) : null;
 
   if (isInternet) {
     return {
@@ -178,6 +180,7 @@ function getMeeting(section) {
       label: "Internet",
       room: "Internet",
       time,
+      startTime,
       meeting: [time, "Internet"].filter(Boolean).join(" "),
       days,
       dayKeys,
@@ -193,6 +196,7 @@ function getMeeting(section) {
     label: "Campus",
     room,
     time,
+    startTime,
     meeting: [days.join(""), time, room].filter(Boolean).join(" "),
     days,
     dayKeys,
@@ -206,6 +210,15 @@ function formatTime(value) {
   const suffix = hour >= 12 ? "PM" : "AM";
   hour = hour % 12 || 12;
   return `${hour}:${minute} ${suffix}`;
+}
+
+function parseMeetingStartTime(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  const normalized = digits.padStart(4, "0").slice(-4);
+  const hour = Number(normalized.slice(0, 2));
+  const minute = Number(normalized.slice(2));
+  return hour < 24 && minute < 60 ? hour * 60 + minute : null;
 }
 
 function getCreditHours(section) {
@@ -457,7 +470,7 @@ function loadSharedView() {
   els.genEdSelect.value = params.get("genEd") ?? "";
   state.openOnly = params.get("openOnly") === "1";
   state.sectionView = params.get("view") === "table" ? "table" : "cards";
-  state.sortKey = ["course", "faculty", "filled", "delivery"].includes(params.get("sort"))
+  state.sortKey = ["course", "faculty", "filled", "delivery", "startTime"].includes(params.get("sort"))
     ? params.get("sort")
     : "course";
   state.sortDir = params.get("sortDir") === "desc" ? "desc" : "asc";
@@ -1090,12 +1103,13 @@ function syncCardSortButtons() {
     const direction = state.sortDir === "asc" ? "ascending" : "descending";
     control.setAttribute("aria-current", String(active));
     control.setAttribute("aria-label", active ? `Sort by ${label}, ${direction}` : `Sort by ${label}`);
-    control.innerHTML = active ? `${label}${sortArrowSvg(state.sortDir)}` : label;
+    control.innerHTML = active ? `${label}${sortArrowSvg(state.sortDir, control.dataset.cardSort === "startTime")}` : label;
   });
 }
 
-function sortArrowSvg(direction) {
-  const path = direction === "asc" ? "M12 5l-5 6h10l-5-6z" : "M12 19l5-6H7l5 6z";
+function sortArrowSvg(direction, reverseDirection = false) {
+  const pointsUp = reverseDirection ? direction === "desc" : direction === "asc";
+  const path = pointsUp ? "M12 5l-5 6h10l-5-6z" : "M12 19l5-6H7l5 6z";
   return `<svg class="sort-arrow" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false"><path d="${path}"></path></svg>`;
 }
 
@@ -1105,6 +1119,7 @@ function sortLabel(key) {
     faculty: "Faculty",
     filled: "Enrollment",
     delivery: "Delivery",
+    startTime: "Start Time",
   }[key] ?? key;
 }
 
@@ -1290,6 +1305,14 @@ function sortedRows() {
   return [...state.filtered].sort((a, b) => {
     const av = sortValue(a, state.sortKey);
     const bv = sortValue(b, state.sortKey);
+    if (state.sortKey === "startTime") {
+      const aIsUntimed = !Number.isFinite(av);
+      const bIsUntimed = !Number.isFinite(bv);
+      if (aIsUntimed || bIsUntimed) {
+        if (aIsUntimed && bIsUntimed) return a.course.localeCompare(b.course);
+        return aIsUntimed ? 1 : -1;
+      }
+    }
     if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
     return String(av).localeCompare(String(bv)) * dir;
   });
@@ -1299,6 +1322,7 @@ function sortValue(row, key) {
   if (key === "faculty") return row.faculty.join(", ");
   if (key === "attributes") return row.attributes.map((attr) => attr.code).join(", ");
   if (key === "meeting") return row.meeting;
+  if (key === "startTime") return row.startTime;
   return row[key] ?? "";
 }
 
