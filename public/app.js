@@ -44,6 +44,7 @@ const state = {
   sortKey: "course",
   sortDir: "asc",
   sectionView: "cards",
+  showAllCards: false,
   openOnly: false,
   preferencesLoaded: false,
   hasSharedView: false,
@@ -76,6 +77,7 @@ let shareRestoreTimer = null;
 let sectionsRendered = false;
 const SEARCH_FILTER_DELAY = 320;
 const SECTION_FADE_DELAY = 220;
+const INITIAL_CARD_LIMIT = 80;
 
 const els = {
   appHeader: document.querySelector(".app-header"),
@@ -129,6 +131,7 @@ const els = {
   sectionsPanelContent: $("sectionsPanelContent"),
   sectionsBody: $("sectionsBody"),
   sectionsCards: $("sectionsCards"),
+  showAllCardsButton: $("showAllCardsButton"),
   tableCount: $("tableCount"),
   tableViewButton: $("tableViewButton"),
   cardViewButton: $("cardViewButton"),
@@ -875,6 +878,12 @@ function bindEvents() {
     exportCsv();
     trackEvent("dashboard_exported", { format: "csv", visible_sections: state.filtered.length });
   });
+  els.showAllCardsButton.addEventListener("click", () => {
+    state.showAllCards = true;
+    renderSections({ transition: false });
+    const firstNewLink = els.sectionsCards.querySelectorAll(".course-link")[INITIAL_CARD_LIMIT];
+    firstNewLink?.focus({ preventScroll: true });
+  });
   els.tableViewButton.addEventListener("click", () => setSectionView("table"));
   els.cardViewButton.addEventListener("click", () => setSectionView("cards"));
   document.querySelectorAll("[data-card-sort]").forEach((control) => {
@@ -1230,6 +1239,7 @@ function sortLabel(key) {
 }
 
 function applyFilters({ transitionSections = true } = {}) {
+  state.showAllCards = false;
   const query = els.searchInput.value.trim().toLowerCase();
   const subjects = state.selectedSubjects;
   const facultyNames = state.selectedFaculty;
@@ -1440,6 +1450,7 @@ function renderSections({ transition = true } = {}) {
   document.querySelector(".table-panel").classList.toggle("is-card-view", isCardView);
   document.querySelector(".table-wrap").hidden = isCardView;
   els.sectionsCards.hidden = !isCardView;
+  els.showAllCardsButton.hidden = true;
   window.clearTimeout(sectionRenderTimer);
 
   if (isCardView) {
@@ -1471,7 +1482,9 @@ function renderTable() {
 }
 
 function renderCards() {
-  const rows = sortedRows().slice(0, 120);
+  const matchingRows = sortedRows();
+  const rows = state.showAllCards ? matchingRows : matchingRows.slice(0, INITIAL_CARD_LIMIT);
+  els.showAllCardsButton.hidden = state.showAllCards || matchingRows.length <= INITIAL_CARD_LIMIT;
   els.sectionsCards.innerHTML = rows.length
     ? rows.map(renderCard).join("")
     : emptyMessage("No sections match the current filters.");

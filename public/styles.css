@@ -949,6 +949,10 @@ select {
   transition: max-height 220ms ease, opacity 160ms ease, padding-top 160ms ease, transform 160ms ease;
 }
 
+.table-panel.is-card-view:not(.is-collapsed) .sections-panel-content {
+  max-height: none;
+}
+
 .table-panel.is-collapsed {
   padding-bottom: 16px;
 }
@@ -1818,5 +1822,20 @@ td:nth-child(8) {
 
   .internet-pill {
     max-width: 100%;
+  }
+}
+
+#showAllCardsButton {
+  margin-left: auto;
+}
+
+#showAllCardsButton[hidden] {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .section-footer #showAllCardsButton {
+    width: auto;
+    align-self: flex-end;
   }
 }
