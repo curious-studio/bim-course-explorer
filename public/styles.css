@@ -96,6 +96,13 @@ select {
     box-shadow: 0 4px 12px rgba(7, 53, 61, 0.2);
   }
 
+  body.header-condensed .header-actions {
+    align-self: center;
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 0;
+  }
+
   body.header-condensed .app-header h1 {
     font-size: 1.2rem;
   }
