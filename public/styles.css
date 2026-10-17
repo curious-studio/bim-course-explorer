@@ -881,7 +881,20 @@ select {
   background: var(--sections-panel);
 }
 
-#sectionsPanelTitle,
+#sectionsPanelTitle {
+  gap: 20px;
+}
+
+#sectionsPanelTitle .section-heading {
+  flex: 1;
+  align-self: stretch;
+  cursor: pointer;
+}
+
+#sectionsPanelTitle .view-toggle {
+  flex-shrink: 0;
+}
+
 #sectionsPanelTitle button {
   cursor: pointer;
 }

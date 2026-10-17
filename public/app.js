@@ -866,7 +866,7 @@ function bindEvents() {
   });
   els.shareViewButton.addEventListener("click", () => shareCurrentView("header"));
   els.shareViewButtonBottom.addEventListener("click", () => shareCurrentView("sections"));
-  els.sectionsPanelTitle.addEventListener("click", (event) => {
+  els.sectionsPanelTitle.querySelector(".section-heading").addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
     setSectionsPanelOpen(els.sectionsPanelToggle.getAttribute("aria-expanded") !== "true");
